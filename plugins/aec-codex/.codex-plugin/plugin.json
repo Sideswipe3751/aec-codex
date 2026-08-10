@@ -1,0 +1,23 @@
+{
+  "name": "aec-codex",
+  "version": "0.1.0",
+  "description": "Connect Codex to local Autodesk Revit and AutoCAD sessions.",
+  "author": {
+    "name": "AEC Codex"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AEC Codex",
+    "shortDescription": "Control local Revit and AutoCAD sessions from Codex.",
+    "longDescription": "Inspect and safely modify Autodesk Revit and AutoCAD documents through authenticated local connectors, version-aware routing, and native transactions.",
+    "developerName": "AEC Codex",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Inspect the active Revit document and summarize the current selection.",
+      "List running Revit and AutoCAD sessions and their documents.",
+      "Inspect the active AutoCAD drawing without changing it."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

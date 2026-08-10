@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "aec-codex": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["./mcp-server/aec_mcp_server.py"]
+    }
+  }
+}

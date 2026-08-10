@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>AEC Codex</Name>
+    <Assembly>Aec.Codex.Revit2024.dll</Assembly>
+    <AddInId>66E6F0BE-A5B5-49D8-A543-EBF53885A58D</AddInId>
+    <FullClassName>Aec.Codex.Revit.AecCodexApplication</FullClassName>
+    <VendorId>AECC</VendorId>
+    <VendorDescription>AEC Codex local Revit connector</VendorDescription>
+  </AddIn>
+</RevitAddIns>

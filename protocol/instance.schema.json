@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aec-codex.local/schemas/instance-v1.json",
+  "title": "AEC Codex connector instance",
+  "type": "object",
+  "required": ["protocolVersion", "instanceId", "application", "applicationVersion", "processId", "url", "token", "startedAtUtc", "capabilities"],
+  "properties": {
+    "protocolVersion": { "const": 1 },
+    "instanceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "application": { "enum": ["revit", "autocad"] },
+    "applicationVersion": { "type": "string", "pattern": "^[0-9]{4}$" },
+    "processId": { "type": "integer", "minimum": 1 },
+    "url": { "type": "string", "pattern": "^http://127\\.0\\.0\\.1:[0-9]+$" },
+    "token": { "type": "string", "minLength": 32 },
+    "startedAtUtc": { "type": "string", "format": "date-time" },
+    "document": {
+      "type": ["object", "null"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "path": { "type": ["string", "null"] }
+      },
+      "required": ["id", "title"],
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

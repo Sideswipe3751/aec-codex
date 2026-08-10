@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" Name="AEC Codex" Description="AEC Codex local AutoCAD connector" AppVersion="0.1.0" ProductCode="{A603F718-7528-419F-8FE8-73914142883C}">
+  <CompanyDetails Name="AEC Codex" />
+  <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.3" SeriesMax="R24.3" />
+  <Components>
+    <ComponentEntry AppName="AEC Codex" Version="0.1.0" ModuleName="./Contents/Windows/Aec.Codex.AutoCAD2024.dll" AppDescription="AEC Codex local AutoCAD connector" LoadReasons="LoadOnAutoCADStartup" />
+  </Components>
+</ApplicationPackage>
