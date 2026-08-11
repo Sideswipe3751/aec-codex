@@ -68,6 +68,7 @@ internal sealed class RevitConnectorExecutor : IConnectorExecutor, IExternalEven
                     Message = "Request expired before Revit execution",
                     ErrorType = "timeout"
                 });
+                AuditLog.TryWrite(GetCachedInfo(), request.Snapshot());
                 continue;
             }
             request.SetStatus(ConnectorRequestStatus.Running);
@@ -76,16 +77,15 @@ internal sealed class RevitConnectorExecutor : IConnectorExecutor, IExternalEven
                 if (request.Kind == ConnectorRequestKind.Selection)
                     ExecuteSelection(application, request);
                 else
-                    request.Complete(new ConnectorCompletion
-                    {
-                        Status = ConnectorRequestStatus.Rejected,
-                        Message = "Dynamic Revit code execution is not enabled in this development build",
-                        ErrorType = "capability_unavailable"
-                    });
+                    ExecuteCode(application, request);
             }
             catch (Exception ex)
             {
                 request.Complete(Failed(ex.Message, ex.GetType().Name));
+            }
+            finally
+            {
+                AuditLog.TryWrite(GetCachedInfo(), request.Snapshot());
             }
         }
         RefreshCachedInfo(application);
@@ -142,6 +142,81 @@ internal sealed class RevitConnectorExecutor : IConnectorExecutor, IExternalEven
         });
     }
 
+    private static void ExecuteCode(UIApplication application, ConnectorRequest request)
+    {
+        var uiDocument = application.ActiveUIDocument;
+        if (uiDocument == null)
+        {
+            request.Complete(Failed("No active Revit document", "no_active_document"));
+            return;
+        }
+        if (request.Mode == "read")
+        {
+            var result = DynamicRevitCode.Execute(request.Code, application, null);
+            request.Complete(new ConnectorCompletion
+            {
+                Status = ConnectorRequestStatus.Succeeded,
+                Result = result
+            });
+            return;
+        }
+
+        var document = uiDocument.Document;
+        using (var group = new TransactionGroup(document, "AEC Codex: " + request.Description))
+        {
+            Transaction? transaction = null;
+            var changed = false;
+            try
+            {
+                if (group.Start() != TransactionStatus.Started)
+                    throw new InvalidOperationException("Unable to start the Revit transaction group");
+                transaction = new Transaction(document, "AEC Codex: " + request.Description);
+                if (transaction.Start() != TransactionStatus.Started)
+                    throw new InvalidOperationException("Unable to start the Revit transaction");
+                var result = DynamicRevitCode.Execute(request.Code, application, transaction);
+                if (transaction.Commit() != TransactionStatus.Committed)
+                    throw new InvalidOperationException("Revit did not commit the transaction");
+                transaction.Dispose();
+                transaction = null;
+                if (group.Assimilate() != TransactionStatus.Committed)
+                    throw new InvalidOperationException("Revit did not assimilate the transaction group");
+                changed = true;
+                request.Complete(new ConnectorCompletion
+                {
+                    Status = ConnectorRequestStatus.Succeeded,
+                    Result = result,
+                    RolledBack = false
+                });
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    if (transaction != null && transaction.GetStatus() == TransactionStatus.Started)
+                        transaction.RollBack();
+                }
+                catch { }
+                finally
+                {
+                    transaction?.Dispose();
+                }
+                try
+                {
+                    if (!changed && group.GetStatus() == TransactionStatus.Started)
+                        group.RollBack();
+                }
+                catch { }
+                request.Complete(new ConnectorCompletion
+                {
+                    Status = ConnectorRequestStatus.Failed,
+                    Message = ex.Message,
+                    ErrorType = ex.GetType().Name,
+                    RolledBack = true
+                });
+            }
+        }
+    }
+
     private ConnectorInfo CreateInfo(string version, int processId, DocumentDescriptor? document) =>
         new ConnectorInfo
         {
@@ -149,9 +224,12 @@ internal sealed class RevitConnectorExecutor : IConnectorExecutor, IExternalEven
             Application = "revit",
             ApplicationVersion = version,
             ProcessId = processId,
-            ConnectorVersion = "0.1.0",
+            ConnectorVersion = "1.0.0",
             Document = document,
-            Capabilities = new List<string> { "document.info", "selection.read" }
+            Capabilities = new List<string>
+            {
+                "document.info", "selection.read", "code.read", "code.write", "transaction.rollback"
+            }
         };
 
     private static ConnectorInfo CloneInfo(ConnectorInfo source) => new ConnectorInfo

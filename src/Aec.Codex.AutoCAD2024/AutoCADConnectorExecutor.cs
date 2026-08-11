@@ -56,6 +56,7 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
                     Message = "Request expired before AutoCAD execution",
                     ErrorType = "timeout"
                 });
+                AuditLog.TryWrite(GetCachedInfo(), request.Snapshot());
                 continue;
             }
             request.SetStatus(ConnectorRequestStatus.Running);
@@ -64,16 +65,15 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
                 if (request.Kind == ConnectorRequestKind.Selection)
                     ExecuteSelection(request);
                 else
-                    request.Complete(new ConnectorCompletion
-                    {
-                        Status = ConnectorRequestStatus.Rejected,
-                        Message = "Dynamic AutoCAD code execution is not enabled in this development build",
-                        ErrorType = "capability_unavailable"
-                    });
+                    ExecuteCode(request);
             }
             catch (Exception ex)
             {
                 request.Complete(Failed(ex.Message, ex.GetType().Name));
+            }
+            finally
+            {
+                AuditLog.TryWrite(GetCachedInfo(), request.Snapshot());
             }
         }
         RefreshCachedInfo();
@@ -121,6 +121,56 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
         }
     }
 
+    private static void ExecuteCode(ConnectorRequest request)
+    {
+        var document = Application.DocumentManager.MdiActiveDocument;
+        if (document == null)
+        {
+            request.Complete(Failed("No active AutoCAD document", "no_active_document"));
+            return;
+        }
+        if (request.Mode == "read")
+        {
+            using (var transaction = document.Database.TransactionManager.StartOpenCloseTransaction())
+            {
+                var result = DynamicAutoCADCode.Execute(request.Code, document, transaction);
+                request.Complete(new ConnectorCompletion
+                {
+                    Status = ConnectorRequestStatus.Succeeded,
+                    Result = result
+                });
+            }
+            return;
+        }
+
+        using (document.LockDocument())
+        using (var transaction = document.Database.TransactionManager.StartTransaction())
+        {
+            try
+            {
+                var result = DynamicAutoCADCode.Execute(request.Code, document, transaction);
+                transaction.Commit();
+                request.Complete(new ConnectorCompletion
+                {
+                    Status = ConnectorRequestStatus.Succeeded,
+                    Result = result,
+                    RolledBack = false
+                });
+            }
+            catch (Exception ex)
+            {
+                try { transaction.Abort(); } catch { }
+                request.Complete(new ConnectorCompletion
+                {
+                    Status = ConnectorRequestStatus.Failed,
+                    Message = ex.Message,
+                    ErrorType = ex.GetType().Name,
+                    RolledBack = true
+                });
+            }
+        }
+    }
+
     private void RefreshCachedInfo()
     {
         var document = Application.DocumentManager.MdiActiveDocument;
@@ -150,9 +200,12 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
             Application = "autocad",
             ApplicationVersion = version,
             ProcessId = processId,
-            ConnectorVersion = "0.1.0",
+            ConnectorVersion = "1.0.0",
             Document = document,
-            Capabilities = new List<string> { "document.info", "selection.read" }
+            Capabilities = new List<string>
+            {
+                "document.info", "selection.read", "code.read", "code.write", "transaction.rollback"
+            }
         };
 
     private static ConnectorInfo CloneInfo(ConnectorInfo source) => new ConnectorInfo

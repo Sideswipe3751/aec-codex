@@ -1,6 +1,6 @@
 {
   "name": "aec-codex",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Connect Codex to local Autodesk Revit and AutoCAD sessions.",
   "author": {
     "name": "AEC Codex"

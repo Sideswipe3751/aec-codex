@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="AcCoreMgd">
       <HintPath>$(AutoCAD2024InstallDir)\AcCoreMgd.dll</HintPath>
       <Private>false</Private>

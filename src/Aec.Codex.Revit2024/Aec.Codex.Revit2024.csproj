@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="RevitAPI">
       <HintPath>$(Revit2024InstallDir)\RevitAPI.dll</HintPath>
       <Private>false</Private>

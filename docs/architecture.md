@@ -36,3 +36,25 @@ so Codex can apply the user's selected action-approval policy.
 Authentication, validation, transaction rollback, timeouts, and audit logging
 remain mandatory engineering controls. They do not constitute a second
 approval layer.
+
+## Dynamic execution and rollback
+
+The MCP exposes separate read and write tools. Their `code` value is a C#
+method body compiled in memory inside the selected Autodesk process. Revit
+dispatches it through `ExternalEvent`; AutoCAD dispatches it from the idle
+application context. The code has access only to the variables documented by
+the connector contract, although it runs with the Autodesk process/user's OS
+permissions and must therefore remain a write-annotated capability.
+
+Revit wraps each write in a `TransactionGroup` and `Transaction`. AutoCAD wraps
+each write in a `DocumentLock` and database `Transaction`. Generated code does
+not own these objects. An exception aborts the entire request and the response
+sets `rolledBack: true`; a successful response is emitted only after commit.
+
+## Installer transaction
+
+The current-user installer stages version-specific files, moves every existing
+target into a private rollback directory, registers the personal Codex plugin,
+and deletes the rollback directory only after all steps succeed. Installation
+is refused while Revit or AutoCAD is running. Public release bootstrapping uses
+a pinned release URL and SHA-256 digest.
