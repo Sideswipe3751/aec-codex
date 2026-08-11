@@ -2,12 +2,17 @@
 param(
     [ValidateSet('Install', 'Repair', 'Uninstall')]
     [string]$Action = 'Install',
-    [string]$SourceRoot = (Split-Path -Parent $PSScriptRoot),
-    [switch]$SkipBuild
+    [string]$SourceRoot,
+    [switch]$SkipBuild,
+    [switch]$SkipProviders
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+if (-not $SourceRoot) {
+    $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $SourceRoot = Split-Path -Parent $scriptDirectory
+}
 
 function Get-UserPath([Environment+SpecialFolder]$Folder) {
     [Environment]::GetFolderPath($Folder)
@@ -98,10 +103,13 @@ $pluginTarget = Join-Path $profile 'plugins\aec-codex'
 $marketplaceTarget = Join-Path $profile '.agents\plugins\marketplace.json'
 $stateRoot = Join-Path $local 'AEC Codex'
 $statePath = Join-Path $stateRoot 'install-state.json'
-$targets = @($revitDllTarget, $revitManifestTarget, $cadBundleTarget, $pluginTarget)
+$targets = @($revitDllTarget, $revitManifestTarget, $cadBundleTarget, $pluginTarget, $statePath)
 
 if ($Action -eq 'Uninstall') {
     if (-not $PSCmdlet.ShouldProcess('AEC Codex current-user installation', 'Uninstall')) { return }
+    if (-not $SkipProviders) {
+        & (Join-Path $SourceRoot 'installer\Install-AecProviders.ps1') -Action Uninstall -SourceRoot $SourceRoot -Confirm:$false
+    }
     foreach ($target in $targets) {
         if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
     }
@@ -164,7 +172,8 @@ try {
     Copy-Directory (Join-Path $SourceRoot 'plugins\aec-codex') $pluginTarget
     $pluginManifest = Join-Path $pluginTarget '.codex-plugin\plugin.json'
     $pluginJson = Get-Content -LiteralPath $pluginManifest -Raw | ConvertFrom-Json
-    $pluginJson.version = '1.0.0+codex.local-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
+    $basePluginVersion = $pluginJson.version -replace '\+.*$',''
+    $pluginJson.version = $basePluginVersion + '+codex.local-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
     Write-Utf8NoBom $pluginManifest ($pluginJson | ConvertTo-Json -Depth 10)
     Update-PersonalMarketplace $marketplaceTarget
 
@@ -179,17 +188,33 @@ try {
     }
 
     [ordered]@{
-        version = '1.0.0'
+        version = '1.1.0'
         installedAtUtc = [DateTime]::UtcNow.ToString('o')
         sourceRoot = $SourceRoot
         revit2024 = $revitDllTarget
         autocad2024 = $cadBundleTarget
         codexPlugin = $pluginTarget
     } | ConvertTo-Json -Depth 5 | ForEach-Object { Write-Utf8NoBom $statePath $_ }
-    Remove-Item -LiteralPath $backupRoot -Recurse -Force
-    Write-Host 'AEC Codex 1.0 was installed successfully. Restart Codex, Revit, and AutoCAD before testing.'
+
+    if (-not $SkipProviders) {
+        & (Join-Path $SourceRoot 'installer\Install-AecProviders.ps1') -Action $Action -SourceRoot $SourceRoot -SkipBuild:$SkipBuild -Confirm:$false
+    }
+
+    Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host 'AEC Codex 1.1 was installed successfully. Restart Codex, Revit, and AutoCAD before testing.'
 } catch {
+    $failure = $_.Exception.Message
     Restore-Backups $records
+    $rollbackCli = Find-CodexCli
+    if ($rollbackCli) {
+        try {
+            if (Test-Path -LiteralPath $pluginTarget) {
+                & $rollbackCli plugin add 'aec-codex@personal' *> $null
+            } else {
+                & $rollbackCli plugin remove 'aec-codex@personal' *> $null
+            }
+        } catch { }
+    }
     if (Test-Path -LiteralPath $backupRoot) { Remove-Item -LiteralPath $backupRoot -Recurse -Force }
-    throw "AEC Codex installation failed and was rolled back: $($_.Exception.Message)"
+    throw "AEC Codex installation failed and was rolled back: $failure"
 }

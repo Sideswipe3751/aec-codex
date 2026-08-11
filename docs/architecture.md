@@ -10,21 +10,30 @@ AEC Codex has three trust boundaries:
 3. A connector accepts authenticated loopback HTTP requests and dispatches all
    Autodesk API access onto the application's supported execution context.
 
+The MCP host also manages two version-pinned structured child MCPs over STDIO.
+Their tools are discovered at runtime and exposed through a five-tool gateway,
+so upstream catalogs can evolve without increasing Codex's top-level tool
+surface. Revit's community add-in is patched to loopback-only transport with a
+per-user token; AutoCAD MCP runs in live COM mode with remote HTTP and arbitrary
+command/LISP execution disabled.
+
 The MCP host never loads Autodesk assemblies. Revit and AutoCAD connectors do
 not call OpenAI services and do not expose a non-loopback listener.
 
 ## Version model
 
-The protocol and MCP host are version-independent. Autodesk adapters are built
-for three runtime families:
+The protocol and MCP host are version-independent. The bridge is designed for
+three Autodesk runtime families:
 
 - `net48`: Autodesk 2024 and selected earlier releases.
 - `net8.0-windows`: Autodesk 2025 and 2026 compatibility line.
 - `net10.0-windows`: Autodesk 2027.
 
-V1.0 certifies 2024 and 2027 only. Supporting a version means more than a
-successful build: loading, document routing, transactions, rollback, shutdown,
-and representative read/write operations must pass inside that exact product.
+The current adapter projects and installer target 2024. The shared bridge also
+builds on .NET 10 so 2027 adapters can reuse it, but 2027 is not certified or
+shipped yet. Supporting a version means more than a successful build: loading,
+document routing, transactions, rollback, shutdown, and representative
+read/write operations must pass inside that exact product.
 
 ## Approval model
 

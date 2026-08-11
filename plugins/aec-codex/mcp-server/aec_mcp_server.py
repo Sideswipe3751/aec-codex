@@ -13,8 +13,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from provider_gateway import MANAGER as PROVIDERS, ProviderError
 
-SERVER_VERSION = "1.0.0"
+
+SERVER_VERSION = "1.1.0"
 SUPPORTED_MCP_VERSIONS = (
     "2025-11-25",
     "2025-06-18",
@@ -161,6 +163,104 @@ TOOLS = [
                 },
             },
             ["description", "code"],
+        ),
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": False,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "aec_list_providers",
+        "title": "List structured AEC providers",
+        "description": "List installed Revit and AutoCAD structured-tool providers and optionally probe their health.",
+        "inputSchema": object_schema(
+            {
+                "probe": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Start providers and count tools. This can take several seconds.",
+                }
+            }
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "aec_search_provider_tools",
+        "title": "Search structured Autodesk tools",
+        "description": "Search installed provider catalogs without loading every tool schema into context.",
+        "inputSchema": object_schema(
+            {
+                "query": {"type": "string", "description": "Capability or Autodesk command to find."},
+                "provider": {"type": "string", "description": "Optional provider id."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 10},
+            },
+            ["query"],
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "aec_get_provider_tool_schema",
+        "title": "Get structured Autodesk tool schema",
+        "description": "Get the exact input schema and access classification for one provider tool before calling it.",
+        "inputSchema": object_schema(
+            {
+                "provider": {"type": "string"},
+                "toolName": {"type": "string"},
+            },
+            ["provider", "toolName"],
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "aec_call_provider_read",
+        "title": "Call structured read-only Autodesk tool",
+        "description": "Call one provider tool only when the provider catalog classifies it as read-only.",
+        "inputSchema": object_schema(
+            {
+                "provider": {"type": "string"},
+                "toolName": {"type": "string"},
+                "arguments": {"type": "object", "additionalProperties": True},
+                "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 60},
+            },
+            ["provider", "toolName", "arguments"],
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": "aec_call_provider_write",
+        "title": "Call structured Autodesk write tool",
+        "description": "Preview or execute one structured provider write tool. A gateway preview never calls an upstream tool that lacks native dry-run support.",
+        "inputSchema": object_schema(
+            {
+                "provider": {"type": "string"},
+                "toolName": {"type": "string"},
+                "arguments": {"type": "object", "additionalProperties": True},
+                "dryRun": {"type": "boolean", "default": True},
+                "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 60},
+            },
+            ["provider", "toolName", "arguments", "dryRun"],
         ),
         "annotations": {
             "readOnlyHint": False,
@@ -348,7 +448,8 @@ def _validate_call_arguments(name: str, arguments: Any) -> dict[str, Any]:
     unknown = set(arguments) - set(schema_properties)
     if unknown:
         raise ToolInputError("Unknown argument(s): " + ", ".join(sorted(unknown)))
-    _target_filters(arguments)
+    if name in {"aec_get_document_info", "aec_get_selection", "aec_execute_read", "aec_execute_write"}:
+        _target_filters(arguments)
     if name.startswith("aec_execute_"):
         for key in ("description", "code"):
             value = arguments.get(key)
@@ -357,6 +458,25 @@ def _validate_call_arguments(name: str, arguments: Any) -> dict[str, Any]:
         timeout = arguments.get("timeoutSeconds", 30)
         if isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= 300:
             raise ToolInputError("timeoutSeconds must be an integer from 1 through 300")
+    if name in {"aec_search_provider_tools", "aec_get_provider_tool_schema", "aec_call_provider_read", "aec_call_provider_write"}:
+        for key in ("provider", "toolName"):
+            if key in arguments and (not isinstance(arguments[key], str) or not arguments[key].strip()):
+                raise ToolInputError(f"{key} must be a non-empty string")
+    if name == "aec_search_provider_tools":
+        query = arguments.get("query")
+        if not isinstance(query, str) or not query.strip():
+            raise ToolInputError("query is required")
+        limit = arguments.get("limit", 10)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 25:
+            raise ToolInputError("limit must be an integer from 1 through 25")
+    if name.startswith("aec_call_provider_"):
+        if not isinstance(arguments.get("arguments"), dict):
+            raise ToolInputError("arguments must be an object")
+        timeout = arguments.get("timeoutSeconds", 60)
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= 300:
+            raise ToolInputError("timeoutSeconds must be an integer from 1 through 300")
+    if name == "aec_call_provider_write" and not isinstance(arguments.get("dryRun"), bool):
+        raise ToolInputError("dryRun is required and must be boolean")
     return arguments
 
 
@@ -396,10 +516,42 @@ def _execute(instance: dict[str, Any], arguments: dict[str, Any], mode: str) -> 
     raise RuntimeError(f"Timed out waiting for connector request {request_id}")
 
 
+def _require_unambiguous_provider_session(provider_id: str) -> None:
+    application = PROVIDERS.get(provider_id).descriptor.get("application")
+    if application not in APPLICATIONS:
+        return
+    instances, _warnings = load_instances()
+    matching = [item for item in instances if item.get("application") == application]
+    if len(matching) > 1:
+        raise RuntimeError(
+            f"{provider_id} cannot target one of several {application} sessions safely. "
+            "Close the extra sessions or use the instance-aware AEC Codex connector fallback."
+        )
+
+
 def invoke_tool(name: str, arguments: Any) -> dict[str, Any]:
     if name not in TOOL_BY_NAME:
         raise ToolInputError("Unknown tool: " + name)
     values = _validate_call_arguments(name, arguments)
+    if name == "aec_list_providers":
+        return PROVIDERS.list(probe=values.get("probe", False))
+    if name == "aec_search_provider_tools":
+        return PROVIDERS.search(
+            values["query"].strip(), values.get("provider"), values.get("limit", 10)
+        )
+    if name == "aec_get_provider_tool_schema":
+        return PROVIDERS.schema(values["provider"].strip(), values["toolName"].strip())
+    if name in {"aec_call_provider_read", "aec_call_provider_write"}:
+        access = "read" if name.endswith("_read") else "write"
+        _require_unambiguous_provider_session(values["provider"].strip())
+        return PROVIDERS.invoke(
+            values["provider"].strip(),
+            values["toolName"].strip(),
+            values["arguments"],
+            access,
+            values.get("dryRun", False),
+            values.get("timeoutSeconds", 60),
+        )
     if name == "aec_list_instances":
         return _list_instances(values)
     instance = select_instance(values)
@@ -464,7 +616,7 @@ def handle(message: Any) -> dict[str, Any] | None:
             raise ProtocolError(-32602, "tools/call requires a tool name")
         try:
             value = invoke_tool(name, params.get("arguments", {}))
-        except (ToolInputError, RuntimeError, KeyError, ValueError) as exc:
+        except (ToolInputError, ProviderError, RuntimeError, KeyError, ValueError) as exc:
             result = tool_result({"error": str(exc)}, is_error=True)
         else:
             result = tool_result(value, is_error=value.get("status") in TERMINAL_STATUSES - {"succeeded"})

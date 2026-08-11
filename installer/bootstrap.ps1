@@ -21,5 +21,12 @@ try {
     if (-not $installer) { throw 'The release does not contain Install-AecCodex.ps1.' }
     & $installer.FullName -SourceRoot (Split-Path -Parent $installer.DirectoryName) -SkipBuild
 } finally {
-    if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $temporaryRoot) {
+        $resolved = [IO.Path]::GetFullPath($temporaryRoot)
+        $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+        if (-not $resolved.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Unsafe bootstrap cleanup target: $resolved"
+        }
+        Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

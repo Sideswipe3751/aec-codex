@@ -6,6 +6,7 @@ import os
 import tempfile
 import threading
 import unittest
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -17,6 +18,7 @@ SERVER_PATH = (
     / "mcp-server"
     / "aec_mcp_server.py"
 )
+sys.path.insert(0, str(SERVER_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("aec_mcp_server", SERVER_PATH)
 assert SPEC and SPEC.loader
 MCP = importlib.util.module_from_spec(SPEC)
@@ -67,12 +69,36 @@ class McpServerTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.previous = os.environ.get("AEC_CODEX_INSTANCE_DIR")
         os.environ["AEC_CODEX_INSTANCE_DIR"] = self.temp.name
+        self.previous_provider_config = os.environ.get("AEC_CODEX_PROVIDER_CONFIG")
+        provider_config = Path(self.temp.name, "providers.json")
+        provider_config.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "providers": [
+                        {
+                            "id": "fake-provider",
+                            "application": "revit",
+                            "displayName": "Fake Provider",
+                            "version": "1.0.0",
+                            "command": sys.executable,
+                            "args": [str(Path(__file__).with_name("fake_provider.py"))],
+                            "enabled": True,
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        os.environ["AEC_CODEX_PROVIDER_CONFIG"] = str(provider_config)
+        MCP.PROVIDERS.reload(force=True)
         self.http = ThreadingHTTPServer(("127.0.0.1", 0), FakeConnector)
         self.thread = threading.Thread(target=self.http.serve_forever, daemon=True)
         self.thread.start()
         self.write_descriptor("revit-one", self.http.server_port)
 
     def tearDown(self):
+        MCP.PROVIDERS.close()
         self.http.shutdown()
         self.http.server_close()
         self.thread.join(timeout=2)
@@ -80,6 +106,10 @@ class McpServerTests(unittest.TestCase):
             os.environ.pop("AEC_CODEX_INSTANCE_DIR", None)
         else:
             os.environ["AEC_CODEX_INSTANCE_DIR"] = self.previous
+        if self.previous_provider_config is None:
+            os.environ.pop("AEC_CODEX_PROVIDER_CONFIG", None)
+        else:
+            os.environ["AEC_CODEX_PROVIDER_CONFIG"] = self.previous_provider_config
         self.temp.cleanup()
 
     def write_descriptor(self, instance_id, port, url=None):
@@ -127,6 +157,11 @@ class McpServerTests(unittest.TestCase):
         self.write_descriptor("revit-two", self.http.server_port)
         with self.assertRaisesRegex(RuntimeError, "More than one connector"):
             MCP.invoke_tool("aec_get_document_info", {"application": "revit"})
+        with self.assertRaisesRegex(RuntimeError, "cannot target one of several"):
+            MCP.invoke_tool(
+                "aec_call_provider_read",
+                {"provider": "fake-provider", "toolName": "get_model_info", "arguments": {}},
+            )
 
     def test_non_loopback_descriptor_is_ignored(self):
         self.write_descriptor("bad", self.http.server_port, "http://example.com:1234")
@@ -140,7 +175,68 @@ class McpServerTests(unittest.TestCase):
         )
         listed = MCP.process_message({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         self.assertEqual("aec-codex", initialized["result"]["serverInfo"]["name"])
-        self.assertEqual(5, len(listed["result"]["tools"]))
+        self.assertEqual(10, len(listed["result"]["tools"]))
+
+    def test_provider_discovery_schema_and_calls(self):
+        listed = MCP.invoke_tool("aec_list_providers", {"probe": True})
+        self.assertEqual("ready", listed["providers"][0]["status"])
+        self.assertEqual(3, listed["providers"][0]["toolCount"])
+        searched = MCP.invoke_tool("aec_search_provider_tools", {"query": "wall"})
+        self.assertEqual("create_wall", searched["tools"][0]["name"])
+        schema = MCP.invoke_tool(
+            "aec_get_provider_tool_schema",
+            {"provider": "fake-provider", "toolName": "get_model_info"},
+        )
+        self.assertEqual("read", schema["access"])
+        read = MCP.invoke_tool(
+            "aec_call_provider_read",
+            {"provider": "fake-provider", "toolName": "get_model_info", "arguments": {}},
+        )
+        self.assertEqual("succeeded", read["status"])
+        dry = MCP.invoke_tool(
+            "aec_call_provider_write",
+            {
+                "provider": "fake-provider",
+                "toolName": "create_wall",
+                "arguments": {"length": 10},
+                "dryRun": True,
+            },
+        )
+        self.assertTrue(dry["result"]["arguments"]["dryRun"])
+        preview = MCP.invoke_tool(
+            "aec_call_provider_write",
+            {
+                "provider": "fake-provider",
+                "toolName": "set_name",
+                "arguments": {"name": "A"},
+                "dryRun": True,
+            },
+        )
+        self.assertEqual("previewed", preview["status"])
+        self.assertEqual("gateway", preview["simulationLevel"])
+        self.assertFalse(preview["willExecute"])
+        with self.assertRaisesRegex(RuntimeError, "Missing required provider argument"):
+            MCP.invoke_tool(
+                "aec_call_provider_write",
+                {
+                    "provider": "fake-provider",
+                    "toolName": "set_name",
+                    "arguments": {},
+                    "dryRun": True,
+                },
+            )
+
+    def test_provider_read_boundary_and_blocked_code(self):
+        with self.assertRaisesRegex(RuntimeError, "not classified read-only"):
+            MCP.invoke_tool(
+                "aec_call_provider_read",
+                {"provider": "fake-provider", "toolName": "create_wall", "arguments": {}},
+            )
+        with self.assertRaisesRegex(RuntimeError, "does not expose"):
+            MCP.invoke_tool(
+                "aec_get_provider_tool_schema",
+                {"provider": "fake-provider", "toolName": "send_code_to_revit"},
+            )
 
 
 if __name__ == "__main__":

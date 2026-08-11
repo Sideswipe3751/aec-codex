@@ -1,0 +1,62 @@
+diff --git a/plugin/Core/SocketService.cs b/plugin/Core/SocketService.cs
+index 9238bbe..bf5891d 100644
+--- a/plugin/Core/SocketService.cs
++++ b/plugin/Core/SocketService.cs
+@@ -102,7 +102,7 @@ namespace revit_mcp_plugin.Core
+             try
+             {
+                 _isRunning = true;
+-                _listener = new TcpListener(IPAddress.Any, _port);
++                _listener = new TcpListener(IPAddress.Loopback, _port);
+                 _listener.Start();
+ 
+                 _listenerThread = new Thread(ListenForClients)
+@@ -224,9 +224,18 @@ namespace revit_mcp_plugin.Core
+ 
+             try
+             {
++                var requestObject = JObject.Parse(requestJson);
++                var paramsObject = requestObject["params"] as JObject;
++                var suppliedToken = paramsObject?["_aecToken"]?.ToString();
++                if (!TokenEquals(suppliedToken, ReadExpectedToken()))
++                {
++                    return CreateErrorResponse(null, JsonRPCErrorCodes.InvalidRequest, "Unauthorized AEC provider request");
++                }
++                paramsObject?.Remove("_aecToken");
++
+                 // 解析JSON-RPC请求
+                 // Parse JSON-RPC requests.
+-                request = JsonConvert.DeserializeObject<JsonRPCRequest>(requestJson);
++                request = requestObject.ToObject<JsonRPCRequest>();
+ 
+                 // 验证请求格式是否有效
+                 // Verify that the request format is valid.
+@@ -282,6 +291,28 @@ namespace revit_mcp_plugin.Core
+             }
+         }
+ 
++        private static string ReadExpectedToken()
++        {
++            var path = Path.Combine(
++                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
++                "AEC Codex", "providers", "revit-community.token");
++            return File.Exists(path) ? File.ReadAllText(path).Trim() : string.Empty;
++        }
++
++        private static bool TokenEquals(string supplied, string expected)
++        {
++            if (string.IsNullOrEmpty(supplied) || string.IsNullOrEmpty(expected)) return false;
++            var difference = supplied.Length ^ expected.Length;
++            var count = Math.Max(supplied.Length, expected.Length);
++            for (var index = 0; index < count; index++)
++            {
++                var left = index < supplied.Length ? supplied[index] : '\0';
++                var right = index < expected.Length ? expected[index] : '\0';
++                difference |= left ^ right;
++            }
++            return difference == 0;
++        }
++
+         private string CreateSuccessResponse(string id, object result)
+         {
+             var response = new JsonRPCSuccessResponse

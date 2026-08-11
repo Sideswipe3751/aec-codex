@@ -10,27 +10,43 @@ Autodesk API operations inside the target application's connector.
 
 ## Workflow
 
-1. Call `aec_list_instances` before the first Autodesk operation in a task.
-2. If more than one compatible instance is running, identify the target from
+1. Call `aec_list_providers` with `probe: true`. Use a ready structured
+   provider before generating code.
+2. Call `aec_search_provider_tools`, inspect the selected tool with
+   `aec_get_provider_tool_schema`, then use `aec_call_provider_read` or
+   `aec_call_provider_write` as classified.
+3. For a write, call the write tool with `dryRun: true` first. A gateway
+   preview does not execute; a provider preview delegates simulation to the
+   upstream MCP. Execute with `dryRun: false` only when the request authorizes
+   the change under the current Codex approval policy.
+4. If no structured tool covers the operation, call `aec_list_instances`
+   before using the AEC Codex connector fallback.
+5. If more than one compatible instance is running, identify the target from
    the application, version, and document. Ask only when the user's intent does
    not determine a unique target.
-3. Read current state before changing it. Prefer document, selection, query,
+6. Read current state before changing it. Prefer document, selection, query,
    and property tools over arbitrary code.
-4. Use a write tool only when the user requested a change. Keep the operation
+7. Use a write tool only when the user requested a change. Keep the operation
    inside one native transaction when atomic rollback is appropriate.
-5. Read back the affected objects and report concrete identifiers and results.
+8. Read back the affected objects and report concrete identifiers and results.
 
 ## Tool selection
 
 - Use `aec_get_document_info` for product, version, active document, units, and
   capabilities.
 - Use `aec_get_selection` before making assumptions about the user's selection.
+- Treat `mcp-servers-for-revit` and `U-C4N AutoCAD MCP` as the preferred
+  structured providers. Discover their tools dynamically; do not assume a
+  remembered tool name or schema.
 - Use `aec_execute_read` only when no structured read tool covers the required
   Autodesk API surface.
 - Use `aec_execute_write` only when no structured create/update tool covers the
   request. Treat it as potentially destructive because arbitrary code can
   delete or overwrite data.
 - Never send Revit API code to AutoCAD or AutoCAD API code to Revit.
+- Do not fall back to generated code merely because a structured call was
+  denied, invalid, or failed during a mutation. Fallback is for missing
+  capability, not a way around a provider safety boundary.
 
 ## Approval and safety
 
@@ -49,3 +65,5 @@ Autodesk API operations inside the target application's connector.
   authentication, request status, or connector compatibility.
 - Read [tool-routing.md](references/tool-routing.md) before generating fallback
   Autodesk API code or combining several write operations.
+- Read [providers.md](references/providers.md) for provider precedence,
+  previews, blocked tools, version updates, and fallback rules.

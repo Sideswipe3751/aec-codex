@@ -1,4 +1,4 @@
 interface:
   display_name: "AEC Codex"
-  short_description: "Control Revit and AutoCAD from Codex"
-  default_prompt: "Use $aec-codex to inspect and safely modify the active Revit or AutoCAD document."
+  short_description: "Control Revit and AutoCAD with MCP tools"
+  default_prompt: "Use $aec-codex to discover structured tools, inspect the active Revit or AutoCAD document, preview writes, and modify it safely."
