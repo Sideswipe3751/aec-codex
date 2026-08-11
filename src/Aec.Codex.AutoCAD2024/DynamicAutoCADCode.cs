@@ -41,7 +41,7 @@ namespace Aec.Codex.Dynamic {
                 GenerateInMemory = true,
                 IncludeDebugInformation = false,
                 TreatWarningsAsErrors = false,
-                CompilerOptions = "/optimize /langversion:latest"
+                CompilerOptions = "/optimize /langversion:5"
             };
             AddReference(parameters, typeof(object).Assembly);
             AddReference(parameters, typeof(Enumerable).Assembly);

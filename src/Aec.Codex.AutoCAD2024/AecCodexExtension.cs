@@ -20,8 +20,9 @@ public sealed class AecCodexExtension : IExtensionApplication
             _server.Start();
             Application.Idle += OnIdle;
         }
-        catch
+        catch (System.Exception exception)
         {
+            ConnectorDiagnostics.TryWriteStartupFailure("AutoCAD", exception);
             _server?.Dispose();
             _server = null;
             _executor = null;

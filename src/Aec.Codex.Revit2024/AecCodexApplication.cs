@@ -24,8 +24,9 @@ public sealed class AecCodexApplication : IExternalApplication
             application.Idling += OnIdling;
             return Result.Succeeded;
         }
-        catch
+        catch (Exception exception)
         {
+            ConnectorDiagnostics.TryWriteStartupFailure("Revit", exception);
             _server?.Dispose();
             _externalEvent?.Dispose();
             _server = null;

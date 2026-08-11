@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using System.Threading;
 
 namespace Aec.Codex.Bridge;
@@ -222,8 +221,7 @@ public sealed class ConnectorRequest : IDisposable
 
     private static object? NormalizeJson(object? value)
     {
-        if (!(value is JsonElement element)) return value;
-        return JsonSerializer.Deserialize<object>(element.GetRawText());
+        return JsonCodec.Normalize(value);
     }
 
     public void Dispose() => _completed.Dispose();

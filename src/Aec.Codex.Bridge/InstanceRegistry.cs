@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json;
 
 namespace Aec.Codex.Bridge;
 
@@ -19,7 +18,7 @@ internal sealed class InstanceRegistry : IDisposable
     public void Write(ConnectorInstanceDescriptor descriptor)
     {
         var temp = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        var json = JsonSerializer.Serialize(descriptor, JsonOptions.Default);
+        var json = JsonCodec.Serialize(descriptor);
         File.WriteAllText(temp, json);
         try
         {
@@ -37,14 +36,4 @@ internal sealed class InstanceRegistry : IDisposable
         try { if (File.Exists(_path)) File.Delete(_path); }
         catch { }
     }
-}
-
-internal static class JsonOptions
-{
-    public static readonly JsonSerializerOptions Default = new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = true
-    };
 }

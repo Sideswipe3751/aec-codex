@@ -1,12 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net48</TargetFrameworks>
     <Nullable>enable</Nullable>
     <RootNamespace>Aec.Codex.Bridge</RootNamespace>
     <AssemblyName>Aec.Codex.Bridge</AssemblyName>
     <Description>Autodesk-free local connector bridge for AEC Codex.</Description>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json;
 
 namespace Aec.Codex.Bridge;
 
@@ -31,7 +30,7 @@ public static class AuditLog
                 },
                 request
             };
-            var line = JsonSerializer.Serialize(record, JsonOptions.Default);
+            var line = JsonCodec.Serialize(record);
             lock (Sync)
             {
                 File.AppendAllText(path, line + Environment.NewLine);

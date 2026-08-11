@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 
 namespace Aec.Codex.Bridge;
@@ -148,7 +147,7 @@ public sealed class ConnectorServer : IDisposable
         {
             WriteJson(context, 413, new { error = "request_too_large" });
         }
-        catch (JsonException ex)
+        catch (JsonCodecException ex)
         {
             WriteJson(context, 400, new { error = "invalid_json", message = ex.Message });
         }
@@ -190,7 +189,7 @@ public sealed class ConnectorServer : IDisposable
     private void HandleExecute(HttpListenerContext context)
     {
         var payload = ReadJson<ExecutePayload>(context.Request);
-        if (payload == null) throw new JsonException("Request body is required");
+        if (payload == null) throw new JsonCodecException("Request body is required");
         var mode = (payload.Mode ?? "").Trim().ToLowerInvariant();
         if (mode != "read" && mode != "write")
         {
@@ -307,14 +306,14 @@ public sealed class ConnectorServer : IDisposable
                 memory.Write(buffer, 0, read);
             }
             if (memory.Length == 0) return default;
-            return JsonSerializer.Deserialize<T>(memory.ToArray(), JsonOptions.Default);
+            return JsonCodec.Deserialize<T>(memory.ToArray());
         }
     }
 
     private static void WriteJson(HttpListenerContext context, int statusCode, object value)
     {
         if (context.Response.OutputStream == null) return;
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions.Default);
+        var bytes = JsonCodec.SerializeToUtf8Bytes(value);
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json; charset=utf-8";
         context.Response.ContentLength64 = bytes.Length;
