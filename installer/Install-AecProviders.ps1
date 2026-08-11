@@ -117,7 +117,7 @@ if ($builtVersions['revit-community'] -ne $revit.version -or $builtVersions['aut
 
 $python = (Get-Command python -ErrorAction SilentlyContinue).Source
 if (-not $python) { throw 'Python 3.11 or newer is required for the AutoCAD provider.' }
-$pythonVersion = & $python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
+$pythonVersion = & $python -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sep=chr(46))'
 if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11') {
     throw "Python 3.11 or newer is required; found $pythonVersion."
 }
