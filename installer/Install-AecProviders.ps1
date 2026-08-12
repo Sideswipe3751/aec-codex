@@ -150,6 +150,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create the AutoCAD provider Python environment.' }
     $providerWheel = Get-ChildItem -LiteralPath $autocadPackage -Filter 'autocad_mcp_pro-*.whl' -File | Select-Object -First 1
     if (-not $providerWheel) { throw 'AutoCAD provider wheel is missing from the bundle.' }
+    & $python (Join-Path $SourceRoot 'providers\Patch-AutoCADWheel.py') $providerWheel.FullName --verify
+    if ($LASTEXITCODE -ne 0) { throw 'AutoCAD provider wheel is missing the required AEC Codex COM fixes v2.' }
     & $venvPython -m pip install --disable-pip-version-check --no-input ($providerWheel.FullName + '[com]')
     if ($LASTEXITCODE -ne 0) { throw 'Unable to install the AutoCAD provider and COM dependencies.' }
     if (-not (Test-Path -LiteralPath $autocadCommand)) { throw 'AutoCAD provider command was not installed.' }
@@ -158,6 +160,21 @@ try {
     }
 
     Copy-Directory (Join-Path $revitPackage 'addin\revit_mcp_plugin') $revitAddinTarget
+    $registryTemplate = Join-Path $revitAddinTarget 'Commands\commandRegistry.json'
+    if (-not (Test-Path -LiteralPath $registryTemplate)) {
+        $registryTemplate = Join-Path $revitAddinTarget 'Commands\RevitMCPCommandSet\command.json'
+    }
+    if (-not (Test-Path -LiteralPath $registryTemplate)) {
+        throw 'Revit provider command registry template is missing.'
+    }
+    $commandRegistry = Get-Content -LiteralPath $registryTemplate -Raw | ConvertFrom-Json
+    if (-not $commandRegistry.commands -or $commandRegistry.commands.Count -eq 0) {
+        throw 'Revit provider command registry is empty.'
+    }
+    foreach ($command in $commandRegistry.commands) {
+        $command.assemblyPath = 'RevitMCPCommandSet\{VERSION}\RevitMCPCommandSet.dll'
+    }
+    Write-Utf8NoBom (Join-Path $revitAddinTarget 'Commands\commandRegistry.json') ($commandRegistry | ConvertTo-Json -Depth 10)
     New-Item -ItemType Directory -Force -Path $revitAddinRoot | Out-Null
     $manifest = Get-Content -LiteralPath (Join-Path $revitPackage 'addin\mcp-servers-for-revit.addin') -Raw
     $assemblyPath = Join-Path $revitAddinTarget 'RevitMCPPlugin.dll'

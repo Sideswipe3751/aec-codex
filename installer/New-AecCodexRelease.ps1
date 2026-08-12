@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$Version = '1.1.0',
+    [string]$Version = '1.1.0-rc.1',
     [string]$OutputDirectory
 )
 
@@ -23,20 +23,36 @@ function Copy-ReleasePath([string]$RelativePath, [string]$StageRoot) {
 
 & dotnet build (Join-Path $SourceRoot 'AEC.Codex.slnx') -c Release
 if ($LASTEXITCODE -ne 0) { throw 'AEC Codex release build failed.' }
-$providerArtifacts = Join-Path $SourceRoot 'artifacts\providers'
-if (-not (Test-Path -LiteralPath (Join-Path $providerArtifacts 'build-manifest.json'))) {
-    & (Join-Path $SourceRoot 'providers\Build-Providers.ps1') -SourceRoot $SourceRoot -OutputRoot $providerArtifacts
-}
-if (-not (Test-Path -LiteralPath (Join-Path $providerArtifacts 'build-manifest.json'))) {
-    throw 'Verified provider bundles are required for a release.'
-}
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('aec-codex-release-' + [Guid]::NewGuid().ToString('N'))
 $stageRoot = Join-Path $temporaryRoot 'aec-codex'
 New-Item -ItemType Directory -Force -Path $stageRoot,$OutputDirectory | Out-Null
 try {
+    $providerArtifacts = Join-Path $SourceRoot 'artifacts\providers'
+    $providerReady = $false
+    if (Test-Path -LiteralPath (Join-Path $providerArtifacts 'build-manifest.json')) {
+        try {
+            & (Join-Path $SourceRoot 'providers\Test-ProviderBundles.ps1') -SourceRoot $SourceRoot -ArtifactsRoot $providerArtifacts
+            $providerReady = $true
+        } catch {
+            Write-Warning ('Cached provider bundles are stale and will be rebuilt: ' + $_.Exception.Message)
+        }
+    }
+    if (-not $providerReady) {
+        $providerArtifacts = Join-Path $temporaryRoot 'provider-artifacts'
+        & (Join-Path $SourceRoot 'providers\Build-Providers.ps1') -SourceRoot $SourceRoot -OutputRoot $providerArtifacts
+        & (Join-Path $SourceRoot 'providers\Test-ProviderBundles.ps1') -SourceRoot $SourceRoot -ArtifactsRoot $providerArtifacts
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $providerArtifacts 'build-manifest.json'))) {
+        throw 'Verified provider bundles are required for a release.'
+    }
+
     foreach ($path in @(
+        'LICENSE',
+        'NOTICE',
         'README.md',
+        'CHANGELOG.md',
+        'SECURITY.md',
         'THIRD_PARTY_NOTICES.md',
         'installer\Install-AecCodex.ps1',
         'installer\Install-AecProviders.ps1',
@@ -45,9 +61,13 @@ try {
         'src\Aec.Codex.Revit2024\Aec.Codex.Revit2024.addin',
         'src\Aec.Codex.Revit2024\bin\Release\net48',
         'src\Aec.Codex.AutoCAD2024\PackageContents.xml',
-        'src\Aec.Codex.AutoCAD2024\bin\Release\net48',
-        'artifacts\providers'
+        'src\Aec.Codex.AutoCAD2024\bin\Release\net48'
     )) { Copy-ReleasePath $path $stageRoot }
+
+    $providerStage = Join-Path $stageRoot 'artifacts\providers'
+    New-Item -ItemType Directory -Force -Path $providerStage | Out-Null
+    Get-ChildItem -LiteralPath $providerArtifacts -Force |
+        Copy-Item -Destination $providerStage -Recurse -Force
 
     $zipName = "aec-codex-$Version-win-x64.zip"
     $zipPath = Join-Path $OutputDirectory $zipName

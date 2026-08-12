@@ -8,8 +8,9 @@ so the updated plugin and provider configuration are loaded.
 
 1. Run `installer\Install-AecCodex.ps1` from a normal PowerShell session.
 2. Confirm both applications start without add-in load errors.
-3. In a new Codex task, ask: `检查 Revit 和 AutoCAD 结构化 provider 是否就绪，先不要修改任何文件。`
-4. Acceptance: `revit-community` reports 25 allowed tools and `autocad-pro`
+3. In Revit, click **Revit MCP Switch** and confirm the server-open message.
+4. In a new Codex task, ask: `检查 Revit 和 AutoCAD 结构化 provider 是否就绪，先不要修改任何文件。`
+5. Acceptance: `revit-community` reports 25 allowed tools and `autocad-pro`
    reports 47 tools. Both local AEC Codex connector instances are discoverable.
 
 ## Revit 2024

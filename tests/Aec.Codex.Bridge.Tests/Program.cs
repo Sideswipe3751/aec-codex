@@ -9,6 +9,7 @@ using Aec.Codex.Bridge;
 var tests = new List<(string Name, Func<Task> Run)>
 {
     ("authenticated bridge and descriptor lifecycle", TestBridge),
+    ("descriptor refresh tolerates a locked reader", TestDescriptorRefreshWhileLocked),
     ("request status is terminal once completed", TestTerminalStatus),
     ("non-loopback bind is rejected", TestLoopbackOnly)
 };
@@ -26,6 +27,41 @@ foreach (var test in tests)
         failures.Add(test.Name + ": " + ex.Message);
         Console.WriteLine("FAIL " + test.Name + ": " + ex);
     }
+}
+
+static Task TestDescriptorRefreshWhileLocked()
+{
+    var directory = Path.Combine(Path.GetTempPath(), "aec-codex-bridge-tests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var executor = new FakeExecutor();
+        using var server = new ConnectorServer(executor, new ConnectorOptions
+        {
+            Port = GetFreePort(),
+            PortFallbackCount = 2,
+            InstanceDirectory = directory
+        });
+        server.Start();
+        var descriptorPath = Directory.GetFiles(directory, "*.json").Single();
+
+        executor.DocumentTitle = "Updated while locked";
+        using (var reader = new FileStream(descriptorPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            server.RefreshDescriptor();
+        }
+
+        server.RefreshDescriptor();
+        using var descriptor = JsonDocument.Parse(File.ReadAllText(descriptorPath));
+        Assert(
+            descriptor.RootElement.GetProperty("document").GetProperty("title").GetString() == executor.DocumentTitle,
+            "descriptor did not recover after the reader released its lock");
+    }
+    finally
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    }
+    return Task.CompletedTask;
 }
 if (failures.Count > 0) throw new Exception(string.Join(Environment.NewLine, failures));
 
@@ -116,13 +152,15 @@ static void Assert(bool condition, string message)
 
 sealed class FakeExecutor : IConnectorExecutor
 {
+    public string DocumentTitle { get; set; } = "Test";
+
     public ConnectorInfo GetCachedInfo() => new ConnectorInfo
     {
         InstanceId = "revit-2024-" + Process.GetCurrentProcess().Id,
         Application = "revit",
         ApplicationVersion = "2024",
         ProcessId = Process.GetCurrentProcess().Id,
-        Document = new DocumentDescriptor { Id = "doc-1", Title = "Test" },
+        Document = new DocumentDescriptor { Id = "doc-1", Title = DocumentTitle },
         Capabilities = new List<string> { "document.info", "selection.read", "code.read", "code.write" }
     };
 

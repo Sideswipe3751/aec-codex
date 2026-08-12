@@ -2,10 +2,34 @@
 **/obj/
 **/.vs/
 **/__pycache__/
+.tmp/
+.vscode/
+.idea/
 *.user
 *.suo
 *.pyc
+*.log
+*.pfx
+*.p12
+*.snk
+*.key
+*.pem
+.env
+.env.*
+!.env.example
 .coverage
 .pytest_cache/
 artifacts/
 packages/
+Thumbs.db
+.DS_Store
+
+# Local Autodesk acceptance artifacts. Put intentionally published fixtures
+# under tests/fixtures and force-add them after reviewing their contents.
+/*.adt
+/*.bak
+/*.dwg
+/*.dwl
+/*.dwl2
+/*.dxf
+/*.pdf

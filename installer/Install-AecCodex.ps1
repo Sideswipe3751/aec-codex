@@ -188,7 +188,7 @@ try {
     }
 
     [ordered]@{
-        version = '1.1.0'
+        version = '1.1.0-rc.1'
         installedAtUtc = [DateTime]::UtcNow.ToString('o')
         sourceRoot = $SourceRoot
         revit2024 = $revitDllTarget
@@ -201,7 +201,7 @@ try {
     }
 
     Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host 'AEC Codex 1.1 was installed successfully. Restart Codex, Revit, and AutoCAD before testing.'
+    Write-Host 'AEC Codex 1.1.0-rc.1 was installed successfully. Restart Codex, Revit, and AutoCAD before testing.'
 } catch {
     $failure = $_.Exception.Message
     Restore-Backups $records

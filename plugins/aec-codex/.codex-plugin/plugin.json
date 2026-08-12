@@ -1,10 +1,14 @@
 {
   "name": "aec-codex",
-  "version": "1.1.0",
+  "version": "1.1.0-rc.1",
   "description": "Connect Codex to local Autodesk Revit and AutoCAD sessions with structured MCP providers and transactional fallback.",
   "author": {
     "name": "AEC Codex"
   },
+  "homepage": "https://github.com/Sideswipe3751/aec-codex",
+  "repository": "https://github.com/Sideswipe3751/aec-codex",
+  "license": "Apache-2.0",
+  "keywords": ["autocad", "revit", "autodesk", "mcp", "codex"],
   "skills": "./skills/",
   "interface": {
     "displayName": "AEC Codex",
@@ -12,6 +16,7 @@
     "longDescription": "Discover structured Revit and AutoCAD tools at runtime, preview writes, and fall back to authenticated version-aware connectors with native transactions.",
     "developerName": "AEC Codex",
     "category": "Productivity",
+    "websiteURL": "https://github.com/Sideswipe3751/aec-codex",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": [
       "Inspect the active Revit document and summarize the current selection.",

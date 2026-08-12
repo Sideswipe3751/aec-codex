@@ -81,7 +81,13 @@ try {
     Get-ChildItem -LiteralPath (Join-Path $revitSource 'commandset\bin\Release R24') -File |
         Where-Object { $_.Extension -in '.dll', '.pdb' } |
         Copy-Item -Destination $commandOutput -Force
-    Copy-Item -LiteralPath (Join-Path $revitSource 'command.json') -Destination (Split-Path -Parent $commandOutput) -Force
+    $commandTemplate = Join-Path $revitSource 'command.json'
+    Copy-Item -LiteralPath $commandTemplate -Destination (Split-Path -Parent $commandOutput) -Force
+    $commandRegistry = Get-Content -LiteralPath $commandTemplate -Raw | ConvertFrom-Json
+    foreach ($command in $commandRegistry.commands) {
+        $command.assemblyPath = 'RevitMCPCommandSet\{VERSION}\RevitMCPCommandSet.dll'
+    }
+    Write-Utf8NoBom (Join-Path $pluginOutput 'Commands\commandRegistry.json') ($commandRegistry | ConvertTo-Json -Depth 10)
 
     $node = $lock.runtimes.'node-windows-x64'
     $nodeZip = Join-Path $downloads 'node.zip'
@@ -96,6 +102,11 @@ try {
     # bundled node.exe from PATH.
     $serverBuild = Join-Path $buildRoot 'revit-server'
     Copy-DirectoryContents (Join-Path $revitSource 'server') $serverBuild
+    $dependencyAuditPatch = Join-Path $SourceRoot 'providers\patches\revit-community-v1.0.0-dependency-audit.patch'
+    & git -C $serverBuild apply --check $dependencyAuditPatch
+    if ($LASTEXITCODE -ne 0) { throw 'The Revit provider dependency audit patch no longer applies.' }
+    & git -C $serverBuild apply $dependencyAuditPatch
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to apply the Revit provider dependency audit patch.' }
     $npm = Join-Path $nodeSource 'npm.cmd'
     $originalPath = $env:PATH
     try {
@@ -129,7 +140,10 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $autocadOutput | Out-Null
     $wheelName = [IO.Path]::GetFileName(([Uri]$autocad.wheel.url).AbsolutePath)
-    Copy-Item -LiteralPath $wheel -Destination (Join-Path $autocadOutput $wheelName)
+    $patchedWheel = Join-Path $autocadOutput $wheelName
+    Copy-Item -LiteralPath $wheel -Destination $patchedWheel
+    & python (Join-Path $SourceRoot 'providers\Patch-AutoCADWheel.py') $patchedWheel
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to apply the AutoCAD provider COM fixes.' }
     $licenseUrl = $autocad.repository + '/raw/' + $autocad.tag + '/LICENSE'
     Invoke-WebRequest -Uri $licenseUrl -OutFile (Join-Path $autocadOutput 'LICENSE') -UseBasicParsing
 
@@ -137,8 +151,14 @@ try {
         schemaVersion = 1
         builtAtUtc = [DateTime]::UtcNow.ToString('o')
         providers = @(
-            [ordered]@{ id='revit-community'; version=$revit.version; sourceCommit=$revit.commit },
-            [ordered]@{ id='autocad-pro'; version=$autocad.version; sourceTag=$autocad.tag }
+            [ordered]@{
+                id='revit-community'; version=$revit.version; sourceCommit=$revit.commit
+                dependencyPatch='revit-community-v1.0.0-dependency-audit-2026-08-11'
+            },
+            [ordered]@{
+                id='autocad-pro'; version=$autocad.version; sourceTag=$autocad.tag
+                patch='autocad-pro-v1.5.1-live-com-fixes-v2'
+            }
         )
     } | ConvertTo-Json -Depth 8 | ForEach-Object {
         Write-Utf8NoBom (Join-Path $OutputRoot 'build-manifest.json') $_

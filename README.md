@@ -1,82 +1,153 @@
 # AEC Codex
 
+[![CI](https://github.com/Sideswipe3751/aec-codex/actions/workflows/ci.yml/badge.svg)](https://github.com/Sideswipe3751/aec-codex/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Sideswipe3751/aec-codex?include_prereleases)](https://github.com/Sideswipe3751/aec-codex/releases)
+
 AEC Codex is a local Codex plugin that connects Codex to Autodesk Revit and
-AutoCAD. The project uses one MCP protocol and shared connector core with
-version-specific Autodesk adapters.
+AutoCAD. It combines dynamically discovered structured MCP tools with an
+authenticated, version-aware Autodesk connector for document inspection,
+selection reads, bounded API execution, and transaction-safe writes.
 
-## V1.0 goal
+> [!IMPORTANT]
+> AEC Codex is an early release candidate. Use disposable drawings and models
+> for write testing, keep backups, and review the support matrix below.
 
-AEC Codex V1.0 provides a complete local experience: one-command current-user
-installation, dynamically discovered structured tools from
-`mcp-servers-for-revit` and `U-C4N/Autocad-MCP`, live document and selection
-reads, previewed writes, dynamic Autodesk API fallback, and atomic rollback for
-failed fallback writes. Codex remains the only user-facing approval layer.
+## Capabilities
 
-## V1.0 support targets
+- Discovers local Revit and AutoCAD sessions without exposing a network port
+  beyond loopback.
+- Routes structured operations through pinned Revit and AutoCAD MCP providers.
+- Previews writes before execution and keeps Codex as the user-facing approval
+  layer.
+- Falls back to authenticated, bounded Autodesk API code when a structured tool
+  does not cover the required operation.
+- Uses native transactions or undo groups when atomic rollback is appropriate.
+- Installs per Windows user and rolls installation changes back on failure.
 
-| Product | Version | Runtime | Release gate |
+## Support matrix
+
+| Product | Version | Runtime | Status |
 | --- | --- | --- | --- |
-| Revit | 2024 | .NET Framework 4.8 | Provider/connector candidate; live acceptance pending |
-| AutoCAD | 2024 | .NET Framework 4.8 | Provider/connector candidate; live acceptance pending |
-| Revit | 2027 | .NET 10 | Planned compatibility line; not yet certified |
-| AutoCAD | 2027 | .NET 10 | Planned compatibility line; not yet certified |
+| AutoCAD | 2024 / R24.3 | .NET Framework 4.8 | Release candidate; live structured-provider and rollback testing completed |
+| Revit | 2024 | .NET Framework 4.8 | Release candidate; final live acceptance pending |
+| AutoCAD / Revit | 2025-2026 | .NET 8 compatibility line | Not implemented or supported |
+| AutoCAD / Revit | 2027 | .NET 10 compatibility line | Planned; not implemented or supported |
 
-The shared bridge and tests already target .NET 10, but Autodesk 2027 adapter
-projects and structured-provider compatibility are a separate milestone. No
-Autodesk version is certified until its exact connector and representative
-read/write operations pass inside that product.
+No Autodesk version is considered certified until its exact connector and a
+representative set of read/write operations pass inside that product.
 
-## Repository layout
+## Architecture
 
 - `plugins/aec-codex`: Codex plugin, AEC skill, and dependency-free MCP host.
 - `protocol`: versioned connector discovery and request contracts.
 - `providers`: pinned upstream builds, security patches, schema snapshots, and
   controlled update commands.
-- `src`: shared bridge and Autodesk connector projects.
-- `tests`: protocol, MCP, bridge, and live smoke tests.
-- `docs`: architecture, security, compatibility, and development notes.
+- `src`: shared bridge and version-specific Autodesk connector projects.
+- `tests`: MCP, bridge, provider-bundle, and live acceptance tests.
+- `installer`: current-user install, repair, uninstall, bootstrap, and release
+  packaging scripts.
+- `docs`: architecture, security, compatibility, and live-test notes.
 
-The existing Zexus Revit bridge remains a separate reference implementation.
-Its loopback transport, bearer-token authentication, audit log, request queue,
-and Revit `ExternalEvent` approach are being reused. Its Autodesk-side approval
-dialog is intentionally not carried forward: Codex is the only user-facing
-approval layer.
+Connectors publish short-lived descriptors under the current user's profile.
+The MCP host accepts only `127.0.0.1` connector URLs and authenticates every
+request with a per-process bearer token. See [the architecture notes](docs/architecture.md).
 
-## Install the development build
+## Install a release candidate
 
-Close Revit and AutoCAD, then run from PowerShell:
+Prerequisites:
+
+- Windows x64
+- Codex desktop app or CLI
+- Python 3 available as `python`
+- Internet access during the first AutoCAD provider dependency installation
+- AutoCAD 2024 and/or Revit 2024 for the connector being tested
+
+Download the ZIP and matching `.sha256` file from
+[GitHub Releases](https://github.com/Sideswipe3751/aec-codex/releases), verify
+the checksum, close Revit and AutoCAD, extract the ZIP, and run:
+
+```powershell
+& .\installer\Install-AecCodex.ps1 -SkipBuild
+```
+
+Restart Codex and the Autodesk applications after installation. Start a new
+Codex task so it loads the new plugin and provider catalogs. In Revit, click
+**Revit MCP Switch** once per session to start the structured-provider
+listener.
+
+Repair or uninstall the current-user installation with:
+
+```powershell
+& .\installer\Install-AecCodex.ps1 -Action Repair -SkipBuild
+& .\installer\Install-AecCodex.ps1 -Action Uninstall
+```
+
+## Build and install from source
+
+A full connector build requires the .NET SDK plus local AutoCAD 2024 and Revit
+2024 installations at their default paths. Close both Autodesk applications,
+then run:
 
 ```powershell
 & .\installer\Install-AecCodex.ps1
 ```
 
 The installer builds the solution and verified provider bundles, installs the
-Revit 2024 and AutoCAD 2024 connectors plus the structured providers for the
-current Windows user, registers the personal Codex plugin, and rolls every
-changed path back if installation fails. Restart Codex and the Autodesk
-applications after installation. Use `-Action Repair` to reinstall or
-`-Action Uninstall` to remove it.
+connectors for the current user, registers the personal Codex plugin, and
+restores the previous installation if any step fails.
 
-Check pinned upstreams against their latest GitHub releases without activating
-anything:
+Check pinned upstreams without activating them:
 
 ```powershell
 & .\providers\Update-AecProviders.ps1 -Action Check
 ```
 
-Provider activation is versioned. Server/schema updates take effect in a new
-Codex task; a changed Revit provider add-in also requires a Revit restart.
+Provider activation is versioned. Server and schema updates take effect in a
+new Codex task; a changed Revit provider add-in also requires a Revit restart.
 `-Action Rollback` swaps back to the previous active provider configuration.
 
-The final Autodesk 2024 acceptance sequence is documented in
-[`docs/live-test-2024.md`](docs/live-test-2024.md).
+## Test
 
-The public bootstrap downloads a release ZIP and verifies its SHA-256 before
-running the packaged installer; it never pipes an unverified remote script into
-`Invoke-Expression`.
-
-Maintainers create that self-contained Windows ZIP and checksum with:
+Run the dependency-free MCP tests and shared bridge tests:
 
 ```powershell
-& .\installer\New-AecCodexRelease.ps1
+python -m unittest discover -s tests\mcp -p "test_*.py"
+dotnet run --project tests\Aec.Codex.Bridge.Tests -c Release -f net10.0
 ```
+
+When verified provider artifacts are available, also run:
+
+```powershell
+& .\providers\Test-ProviderBundles.ps1
+```
+
+The Autodesk 2024 manual acceptance sequence is documented in
+[docs/live-test-2024.md](docs/live-test-2024.md).
+
+## Create a release ZIP
+
+Maintainers create a Windows release ZIP and checksum with:
+
+```powershell
+& .\installer\New-AecCodexRelease.ps1 -Version '1.1.0-rc.1'
+```
+
+The public bootstrap downloads a release ZIP, verifies its SHA-256, and only
+then runs the packaged installer. It never pipes an unverified remote script
+into `Invoke-Expression`.
+
+## Contributing and security
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
+opening a pull request. Please report vulnerabilities privately as described
+in [SECURITY.md](SECURITY.md), not in a public issue.
+
+## License and trademarks
+
+AEC Codex original code is licensed under the
+[Apache License 2.0](LICENSE). Bundled third-party components remain under
+their respective licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Autodesk, AutoCAD, and Revit are trademarks or registered trademarks of
+Autodesk, Inc. AEC Codex is not affiliated with or endorsed by Autodesk.

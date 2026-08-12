@@ -36,7 +36,7 @@ public sealed class ConnectorInfo
     public string Application { get; set; } = "";
     public string ApplicationVersion { get; set; } = "";
     public int ProcessId { get; set; }
-    public string ConnectorVersion { get; set; } = "0.1.0";
+    public string ConnectorVersion { get; set; } = "1.1.0-rc.1";
     public DocumentDescriptor? Document { get; set; }
     public List<string> Capabilities { get; set; } = new List<string>();
 }

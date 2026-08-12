@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-tests:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Validate plugin manifests
+        shell: pwsh
+        run: |
+          python -m json.tool plugins/aec-codex/.codex-plugin/plugin.json > $null
+          python -m json.tool plugins/aec-codex/.mcp.json > $null
+          python -m json.tool plugins/aec-codex/providers/providers.lock.json > $null
+
+      - name: Run MCP tests
+        run: python -m unittest discover -s tests/mcp -p "test_*.py"
+
+      - name: Run shared bridge tests
+        run: dotnet run --project tests/Aec.Codex.Bridge.Tests -c Release -f net10.0
+
+      - name: Verify repository does not track Autodesk binaries
+        shell: pwsh
+        run: |
+          $blocked = git ls-files | Where-Object { $_ -match '\.(dwg|dxf|bak|dwl2?|dll|exe|pdb|pfx|p12)$' }
+          if ($blocked) {
+            $blocked | Write-Error
+            throw 'Repository contains a blocked binary or local artifact.'
+          }

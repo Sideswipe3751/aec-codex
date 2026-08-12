@@ -19,3 +19,20 @@ notices are included in each installed provider directory.
 - Copyright: Umutcan Edizsalan and contributors
 
 AEC Codex itself is not endorsed by Autodesk or by either upstream project.
+
+## Node.js runtime
+
+- Source: https://github.com/nodejs/node
+- Pinned release: v22.23.2 (Windows x64)
+- License: MIT
+- Copyright: Node.js contributors
+
+The bundled Node.js runtime includes npm and transitive components under their
+respective licenses. Their license files are preserved in the provider bundle.
+
+## AEC Codex modifications
+
+AEC Codex applies documented compatibility and security patches while building
+the pinned providers. The upstream components remain under their original MIT
+licenses, and their copyright and license notices are preserved in source and
+binary distributions.

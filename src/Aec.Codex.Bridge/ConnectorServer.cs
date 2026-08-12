@@ -19,6 +19,7 @@ public sealed class ConnectorServer : IDisposable
     private Thread? _listenerThread;
     private InstanceRegistry? _registry;
     private string _token = "";
+    private string _startedAtUtc = "";
     private int _disposed;
 
     public ConnectorServer(IConnectorExecutor executor, ConnectorOptions? options = null)
@@ -62,6 +63,7 @@ public sealed class ConnectorServer : IDisposable
             throw new InvalidOperationException("Unable to bind an AEC Codex loopback port", lastError);
 
         _registry = new InstanceRegistry(_options.InstanceDirectory, info.InstanceId);
+        _startedAtUtc = DateTime.UtcNow.ToString("o");
         WriteDescriptor(info);
         _listenerThread = new Thread(ListenLoop)
         {
@@ -74,7 +76,21 @@ public sealed class ConnectorServer : IDisposable
     public void RefreshDescriptor()
     {
         if (!IsRunning || _registry == null) return;
-        WriteDescriptor(_executor.GetCachedInfo());
+        try
+        {
+            WriteDescriptor(_executor.GetCachedInfo());
+        }
+        catch (IOException)
+        {
+            // Descriptor discovery is advisory and refresh runs again on the
+            // next Autodesk idle tick. A transient reader must never surface as
+            // an unhandled exception inside Revit or AutoCAD.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Antivirus/indexers can transiently deny the atomic replacement.
+            // Keep the last valid descriptor and retry on the next idle tick.
+        }
     }
 
     private void WriteDescriptor(ConnectorInfo info)
@@ -88,7 +104,7 @@ public sealed class ConnectorServer : IDisposable
             ProcessId = info.ProcessId,
             Url = $"http://127.0.0.1:{Port}",
             Token = _token,
-            StartedAtUtc = DateTime.UtcNow.ToString("o"),
+            StartedAtUtc = _startedAtUtc,
             Document = info.Document,
             Capabilities = info.Capabilities
         });

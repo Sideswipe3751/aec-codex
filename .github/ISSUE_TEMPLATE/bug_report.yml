@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible AEC Codex defect using non-sensitive test data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include connector tokens, private documents, personal paths, or other sensitive data. Report security issues privately through the Security tab.
+  - type: input
+    id: version
+    attributes:
+      label: AEC Codex version
+      placeholder: 1.1.0-rc.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows, Codex, Autodesk product/build, and Python versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Use a disposable model or drawing and remove sensitive content.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed tokens, private document contents, usernames, and unrelated logs.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

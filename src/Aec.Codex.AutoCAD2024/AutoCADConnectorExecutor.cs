@@ -200,7 +200,7 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
             Application = "autocad",
             ApplicationVersion = version,
             ProcessId = processId,
-            ConnectorVersion = "1.0.0",
+            ConnectorVersion = "1.1.0-rc.1",
             Document = document,
             Capabilities = new List<string>
             {
