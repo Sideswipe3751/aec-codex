@@ -20,7 +20,9 @@ Build the upload bundle with:
 
 Before uploading, complete the following owner-controlled actions:
 
-1. Select a logo and generate the final light/dark directory assets.
+1. Use `branding/official/aec-codex-logo-transparent.png` as the owner-selected
+   listing logo. Its four exterior corners are transparent; the white source
+   border must never be uploaded.
 2. Publish the exact rc.3 host ZIP and set its final SHA-256 and `published`
    flag in `plugins/aec-codex/release-manifest.json`.
 3. Confirm the verified OpenAI developer or business identity that will own

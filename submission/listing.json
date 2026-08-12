@@ -21,7 +21,8 @@
     "Preview a safe Revit or AutoCAD change before executing it."
   ],
   "brandColor": "#1257E5",
-  "logoStatus": "awaiting-owner-selection",
+  "logoStatus": "owner-selected-transparent",
+  "logoPath": "branding/official/aec-codex-logo-transparent.png",
   "publisherIdentity": null,
   "manualAttestationsRequired": true
 }
