@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "channel": "release-candidate",
-  "version": "1.1.0-rc.2",
+  "version": "1.1.0-rc.3",
   "published": true,
-  "releaseZipUri": "https://github.com/Sideswipe3751/aec-codex/releases/download/v1.1.0-rc.2/aec-codex-host-1.1.0-rc.2-win-x64.zip",
-  "sha256": "4fa9d010e5b0bc0a3dc46b8621927991cfb0fd3a1b2bc39dcba9242f1d2066c6",
-  "minimumPythonVersion": "3.11",
+  "releaseZipUri": "https://github.com/Sideswipe3751/aec-codex/releases/download/v1.1.0-rc.3/aec-codex-host-1.1.0-rc.3-win-x64.zip",
+  "sha256": "8df926c8ab5980941214bfd101af0d10137988a0b407d8cb884e9b0b0fd01409",
+  "privatePythonVersion": "3.12.10",
   "platform": "windows-x64",
   "supportedProducts": {
     "autocad": ["2024"],

@@ -13,6 +13,40 @@ limitations and are intended for cross-machine compatibility testing.
 - Dedicated .NET 10 connectors for Autodesk 2027.
 - Cleaner AutoCAD rollback command handling and saved-state restoration.
 
+## [1.1.0-rc.3] - 2026-08-11
+
+### Added
+
+- A self-contained, pinned Python 3.12.10 runtime for ordinary user installs.
+- External `aec-codex-local` MCP registration with installer rollback and
+  HostOnly uninstall handling.
+- Public Skills-only submission builder, listing copy, legal/support pages,
+  and positive/negative review test cases.
+- Five original AEC Codex logo candidates for owner selection.
+
+### Changed
+
+- Removed the system Python prerequisite from the public HostOnly path.
+- Moved AutoCAD provider dependency resolution to the trusted release build so
+  first-run installation does not execute `pip` on the user's PC.
+- Locked the complete AutoCAD Python dependency graph and verify its checksum
+  before release, smoke-test, or development installation.
+
+### Validation
+
+- Windows PowerShell installer contracts, MCP unit tests, and the full .NET
+  solution passed.
+- The staged private runtime completed an MCP initialization handshake.
+- AutoCAD and Revit provider bundles initialized with 47 and 25 allowed tools.
+- The public submission ZIP contains only the Skill, setup scripts, legal
+  metadata, release manifest, and license; native binaries and MCP metadata are
+  excluded.
+
+### Known issues
+
+- Revit 2024 final live acceptance is still pending.
+- Autodesk versions other than 2024 are not supported.
+
 ## [1.1.0-rc.2] - 2026-08-11
 
 ### Added
@@ -71,6 +105,7 @@ limitations and are intended for cross-machine compatibility testing.
 - Revit 2024 final live acceptance is still pending.
 - Autodesk versions other than 2024 are not supported.
 
-[Unreleased]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.2...HEAD
+[Unreleased]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.3...HEAD
+[1.1.0-rc.3]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.2...v1.1.0-rc.3
 [1.1.0-rc.2]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.1...v1.1.0-rc.2
 [1.1.0-rc.1]: https://github.com/Sideswipe3751/aec-codex/releases/tag/v1.1.0-rc.1

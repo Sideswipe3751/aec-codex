@@ -4,6 +4,7 @@ param(
     [string]$Action = 'Install',
     [string]$SourceRoot,
     [string]$ArtifactsRoot,
+    [string]$PrivatePython,
     [switch]$SkipBuild
 )
 
@@ -100,6 +101,14 @@ $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
 $revit = $lock.providers | Where-Object { $_.id -eq 'revit-community' }
 $autocad = $lock.providers | Where-Object { $_.id -eq 'autocad-pro' }
 if (-not $revit -or -not $autocad) { throw 'Provider lock is incomplete.' }
+$constraintsPath = Join-Path $SourceRoot ([string]$autocad.runtimeConstraints.path)
+if (-not (Test-Path -LiteralPath $constraintsPath -PathType Leaf) -or $autocad.runtimeConstraints.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+    throw 'Pinned AutoCAD runtime constraints are missing or invalid.'
+}
+$constraintsHash = (Get-FileHash -LiteralPath $constraintsPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($constraintsHash -ne ([string]$autocad.runtimeConstraints.sha256).ToLowerInvariant()) {
+    throw "AutoCAD runtime constraints checksum mismatch. Expected $($autocad.runtimeConstraints.sha256), received $constraintsHash."
+}
 
 if (-not $SkipBuild -and -not (Test-Path -LiteralPath (Join-Path $ArtifactsRoot 'build-manifest.json'))) {
     & (Join-Path $SourceRoot 'providers\Build-Providers.ps1') -SourceRoot $SourceRoot -OutputRoot $ArtifactsRoot
@@ -115,11 +124,20 @@ if ($builtVersions['revit-community'] -ne $revit.version -or $builtVersions['aut
     throw 'Provider artifact versions do not match providers.lock.json.'
 }
 
-$python = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $python) { throw 'Python 3.11 or newer is required for the AutoCAD provider.' }
-$pythonVersion = & $python -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sep=chr(46))'
-if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11') {
-    throw "Python 3.11 or newer is required; found $pythonVersion."
+$usingPrivatePython = [bool]$PrivatePython
+if ($usingPrivatePython) {
+    if (-not (Test-Path -LiteralPath $PrivatePython -PathType Leaf)) {
+        throw "The private Python runtime is missing: $PrivatePython"
+    }
+    $python = $PrivatePython
+} else {
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCommand) { throw 'Python 3.11 or newer is required for a development provider install.' }
+    $python = $pythonCommand.Source
+    $pythonVersion = & $python -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sep=chr(46))'
+    if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11') {
+        throw "Python 3.11 or newer is required for development; found $pythonVersion."
+    }
 }
 
 $revitBundle = Join-Path $ArtifactsRoot ('revit-community\' + $revit.version)
@@ -127,7 +145,10 @@ $autocadBundle = Join-Path $ArtifactsRoot ('autocad-pro\' + $autocad.version)
 $revitPackage = Join-Path $packageRoot ('revit-community\' + $revit.version)
 $autocadPackage = Join-Path $packageRoot ('autocad-pro\' + $autocad.version)
 $venvPython = Join-Path $autocadPackage 'venv\Scripts\python.exe'
-$autocadCommand = Join-Path $autocadPackage 'venv\Scripts\autocad-mcp.exe'
+$privateProviderServer = if ($usingPrivatePython) { Join-Path (Split-Path -Parent $PrivatePython) 'Lib\site-packages\server.py' } else { $null }
+$autocadCommand = if ($usingPrivatePython) { $PrivatePython } else { Join-Path $autocadPackage 'venv\Scripts\autocad-mcp.exe' }
+$autocadArgs = @()
+if ($usingPrivatePython) { $autocadArgs = @($privateProviderServer) }
 $nodeCommand = Join-Path $revitPackage 'runtime\node\node.exe'
 $revitServer = Join-Path $revitPackage 'server\build\index.js'
 $allowedProviderPaths = ((Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Root -Unique) -join ',')
@@ -146,14 +167,20 @@ try {
     Copy-Directory $revitBundle $revitPackage
     Copy-Directory $autocadBundle $autocadPackage
 
-    & $python -m venv (Join-Path $autocadPackage 'venv')
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to create the AutoCAD provider Python environment.' }
     $providerWheel = Get-ChildItem -LiteralPath $autocadPackage -Filter 'autocad_mcp_pro-*.whl' -File | Select-Object -First 1
     if (-not $providerWheel) { throw 'AutoCAD provider wheel is missing from the bundle.' }
     & $python (Join-Path $SourceRoot 'providers\Patch-AutoCADWheel.py') $providerWheel.FullName --verify
     if ($LASTEXITCODE -ne 0) { throw 'AutoCAD provider wheel is missing the required AEC Codex COM fixes v2.' }
-    & $venvPython -m pip install --disable-pip-version-check --no-input ($providerWheel.FullName + '[com]')
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to install the AutoCAD provider and COM dependencies.' }
+    if ($usingPrivatePython) {
+        if (-not (Test-Path -LiteralPath $privateProviderServer -PathType Leaf)) {
+            throw 'The private AutoCAD provider runtime is incomplete.'
+        }
+    } else {
+        & $python -m venv (Join-Path $autocadPackage 'venv')
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to create the AutoCAD provider Python environment.' }
+        & $venvPython -m pip install --quiet --disable-pip-version-check --no-input --constraint $constraintsPath ($providerWheel.FullName + '[com]')
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to install the AutoCAD provider and COM dependencies.' }
+    }
     if (-not (Test-Path -LiteralPath $autocadCommand)) { throw 'AutoCAD provider command was not installed.' }
     if (-not (Test-Path -LiteralPath $nodeCommand) -or -not (Test-Path -LiteralPath $revitServer)) {
         throw 'Revit provider runtime is incomplete.'
@@ -196,7 +223,7 @@ try {
             },
             [ordered]@{
                 id='autocad-pro'; application='autocad'; displayName='U-C4N AutoCAD MCP'; version=$autocad.version; enabled=$true
-                source=$autocad.repository; command=$autocadCommand; args=@(); cwd=$autocadPackage
+                source=$autocad.repository; command=$autocadCommand; args=$autocadArgs; cwd=$autocadPackage
                 startupTimeoutSeconds=60; env=[ordered]@{
                     AUTOCAD_MCP_BACKEND='com'; TOOL_PROFILE='lean'; ALLOWED_PATHS=$allowedProviderPaths
                     ALLOW_REMOTE_HTTP='false'; DANGEROUS_COMMANDS_ENABLED='false'

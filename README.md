@@ -24,6 +24,8 @@ selection reads, bounded API execution, and transaction-safe writes.
   does not cover the required operation.
 - Uses native transactions or undo groups when atomic rollback is appropriate.
 - Installs per Windows user and rolls installation changes back on failure.
+- Includes a private, version-pinned Python runtime; end users do not need to
+  install or configure Python.
 
 ## Support matrix
 
@@ -54,20 +56,24 @@ Connectors publish short-lived descriptors under the current user's profile.
 The MCP host accepts only `127.0.0.1` connector URLs and authenticates every
 request with a per-process bearer token. See [the architecture notes](docs/architecture.md).
 
-## Install from the Codex repo marketplace
+## Install from the public Codex Plugins Directory
 
 Prerequisites:
 
 - Windows x64
 - Codex desktop app or CLI
-- Python 3.11 or newer available as `python`
-- Internet access during the first AutoCAD provider dependency installation
+- Internet access to download the checksum-pinned AEC Codex host release
 - AutoCAD 2024 and/or Revit 2024 for the connector being tested
 
-Add the version-pinned repository marketplace:
+After the public listing is approved and published, open AEC Codex in the
+Plugins Directory and choose **Install**. No command line or repository
+marketplace setup is required. Start a new task with the setup starter prompt.
+
+For release-candidate testing before public approval, add the version-pinned
+repository marketplace:
 
 ```powershell
-codex plugin marketplace add Sideswipe3751/aec-codex --ref v1.1.0-rc.2
+codex plugin marketplace add Sideswipe3751/aec-codex --ref v1.1.0-rc.3
 ```
 
 Restart the Codex desktop app, open the Plugins Directory, select the
@@ -78,7 +84,8 @@ The first task performs a read-only preflight. It reports the exact release,
 SHA-256, prerequisites, running Autodesk applications, and current-user paths
 before asking for permission. Only after the user confirms does Codex download
 the pinned host payload, verify it, and run the installer in `HostOnly` mode.
-That mode preserves the marketplace plugin and never creates a duplicate
+That mode preserves the public plugin, installs a private runtime, registers
+the external local MCP as `aec-codex-local`, and never creates a duplicate
 personal plugin.
 
 Restart Codex and the Autodesk applications after host installation, then
@@ -146,7 +153,7 @@ The Autodesk 2024 manual acceptance sequence is documented in
 Maintainers create a Windows release ZIP and checksum with:
 
 ```powershell
-& .\installer\New-AecCodexRelease.ps1 -Version '1.1.0-rc.2'
+& .\installer\New-AecCodexRelease.ps1 -Version '1.1.0-rc.3'
 ```
 
 The output is a host-only ZIP and matching `.sha256`; the Marketplace plugin

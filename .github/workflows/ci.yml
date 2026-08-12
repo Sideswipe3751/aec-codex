@@ -33,10 +33,16 @@ jobs:
           python -m json.tool plugins/aec-codex/release-manifest.json > $null
           python -m json.tool plugins/aec-codex/providers/providers.lock.json > $null
           python -m json.tool .agents/plugins/marketplace.json > $null
+          python -m json.tool submission/listing.json > $null
+          python -m json.tool submission/test-cases.json > $null
 
       - name: Run installer contract tests
         shell: powershell
         run: .\tests\installer\Test-AecCodexInstaller.ps1
+
+      - name: Build public Skills-only submission bundle
+        shell: powershell
+        run: .\installer\New-AecCodexSubmission.ps1 -Version '1.1.0-rc.3' -AllowUnpublished
 
       - name: Run MCP tests
         run: python -m unittest discover -s tests/mcp -p "test_*.py"

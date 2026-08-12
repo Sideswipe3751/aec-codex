@@ -27,8 +27,20 @@ AEC Codex itself is not endorsed by Autodesk or by either upstream project.
 - License: MIT
 - Copyright: Node.js contributors
 
-The bundled Node.js runtime includes npm and transitive components under their
-respective licenses. Their license files are preserved in the provider bundle.
+The release build uses npm to assemble the provider, but the shipped runtime is
+trimmed to Node.js and its license. Server dependencies and their license
+metadata remain in the provider bundle.
+
+## Python runtime and packages
+
+- Source: https://www.python.org/
+- Pinned runtime: CPython 3.12.10 embeddable package (Windows x64)
+- License: Python Software Foundation License
+- Copyright: Python Software Foundation and contributors
+
+The private runtime contains the pinned AutoCAD provider and its Python
+dependencies. Package metadata and license files are preserved under
+`Lib/site-packages`; CPython's `LICENSE.txt` is preserved at the runtime root.
 
 ## AEC Codex modifications
 

@@ -9,7 +9,8 @@ never skip the release SHA-256 check.
 Run `scripts/Get-AecCodexHostStatus.ps1` from the plugin root. Summarize:
 
 - AEC Codex target and installed versions;
-- Windows architecture and Python version;
+- Windows architecture and whether the bundled private runtime is intact;
+- whether the `aec-codex-local` external MCP registration is present;
 - detected AutoCAD and Revit versions;
 - running Autodesk processes;
 - missing, changed, or outdated installed files;
@@ -27,7 +28,8 @@ Before an install, repair, upgrade, or uninstall, show the user:
 - the expected SHA-256, or that the release has not been published yet;
 - every current-user location that will be changed;
 - that AutoCAD and Revit must be closed;
-- that a private Python environment and pinned providers may be installed;
+- that a self-contained private Python runtime, pinned providers, and the
+  `aec-codex-local` MCP registration will be installed for the current user;
 - that failure triggers rollback to the previous installation.
 
 Ask one direct confirmation question. Continue only after an affirmative
@@ -41,8 +43,9 @@ plugin root. Add `-Action Repair` only for repair. Upgrade uses the normal
 `Install` action when the status is `needs_upgrade`.
 
 The script downloads one exact release, verifies SHA-256, and invokes the
-packaged installer in `HostOnly` mode. It must not create a personal plugin,
-edit a personal marketplace, or register a duplicate plugin.
+packaged installer in `HostOnly` mode. It must not create a personal plugin or
+edit a personal marketplace. It registers only the external local MCP named
+`aec-codex-local`; the public plugin remains the skill and listing layer.
 
 When installation succeeds, tell the user to close and reopen Codex, Revit,
 and AutoCAD, then start a new Codex task. In that new task, rerun the status
@@ -52,8 +55,9 @@ script and proceed only when it reports `healthy`.
 
 After consent, run
 `scripts/Install-AecCodexHost.ps1 -Action Uninstall -UserApproved`. Host-only
-uninstall removes AEC Codex connectors, providers, local MCP host files, and
-installation state. It preserves the Codex marketplace plugin itself.
+uninstall removes AEC Codex connectors, providers, local MCP host files, the
+`aec-codex-local` registration, and installation state. It preserves the
+public Codex plugin itself.
 
 ## Failure handling
 

@@ -13,10 +13,17 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+# CPython's Windows embeddable distribution runs with an explicit ``._pth``
+# file and does not automatically add the launched script's directory. Keep
+# sibling modules importable in both the private runtime and normal dev Python.
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+if str(SCRIPT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIRECTORY))
+
 from provider_gateway import MANAGER as PROVIDERS, ProviderError
 
 
-SERVER_VERSION = "1.1.0-rc.2"
+SERVER_VERSION = "1.1.0-rc.3"
 SUPPORTED_MCP_VERSIONS = (
     "2025-11-25",
     "2025-06-18",

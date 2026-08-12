@@ -144,7 +144,7 @@ class ChildMcpProcess:
                 {
                     "protocolVersion": "2025-11-25",
                     "capabilities": {},
-                    "clientInfo": {"name": "aec-codex-gateway", "version": "1.1.0-rc.2"},
+                    "clientInfo": {"name": "aec-codex-gateway", "version": "1.1.0-rc.3"},
                 },
                 timeout=timeout,
             )

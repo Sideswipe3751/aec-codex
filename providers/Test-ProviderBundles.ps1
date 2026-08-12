@@ -48,7 +48,15 @@ try {
     & python -m venv (Join-Path $temporaryRoot 'venv')
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create provider smoke-test environment.' }
     $testPython = Join-Path $temporaryRoot 'venv\Scripts\python.exe'
-    & $testPython -m pip install --disable-pip-version-check --no-input ($wheel.FullName + '[com]')
+    $constraintsPath = Join-Path $SourceRoot ([string]$autocad.runtimeConstraints.path)
+    if (-not (Test-Path -LiteralPath $constraintsPath -PathType Leaf) -or $autocad.runtimeConstraints.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+        throw 'Pinned AutoCAD runtime constraints are missing or invalid.'
+    }
+    $constraintsHash = (Get-FileHash -LiteralPath $constraintsPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($constraintsHash -ne ([string]$autocad.runtimeConstraints.sha256).ToLowerInvariant()) {
+        throw "AutoCAD runtime constraints checksum mismatch. Expected $($autocad.runtimeConstraints.sha256), received $constraintsHash."
+    }
+    & $testPython -m pip install --quiet --disable-pip-version-check --no-input --constraint $constraintsPath ($wheel.FullName + '[com]')
     if ($LASTEXITCODE -ne 0) { throw 'Unable to install packaged AutoCAD provider.' }
     $autocadCommand = Join-Path $temporaryRoot 'venv\Scripts\autocad-mcp.exe'
     $snapshot = Join-Path $temporaryRoot 'provider-schemas.json'

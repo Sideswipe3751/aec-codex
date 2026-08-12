@@ -1,0 +1,27 @@
+{
+  "name": "AEC Codex",
+  "version": "1.1.0-rc.3",
+  "submissionType": "skills-only",
+  "category": "Productivity",
+  "shortDescription": "Set up and safely control local AutoCAD and Revit sessions.",
+  "longDescription": "AEC Codex connects Codex to AutoCAD 2024 and Revit 2024 on the same Windows PC. It performs a read-only setup check, installs a checksum-pinned per-user host only after explicit approval, discovers structured CAD/BIM tools, previews writes, and uses native transaction or undo behavior for bounded changes.",
+  "websiteURL": "https://github.com/Sideswipe3751/aec-codex",
+  "supportURL": "https://github.com/Sideswipe3751/aec-codex/issues",
+  "privacyPolicyURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/privacy.md",
+  "termsOfServiceURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/terms.md",
+  "license": "Apache-2.0",
+  "supportedPlatform": "Windows x64",
+  "supportedProducts": [
+    "AutoCAD 2024",
+    "Revit 2024"
+  ],
+  "starterPrompts": [
+    "Set up AEC Codex on this PC and verify the local Autodesk connectors.",
+    "Inspect the active AutoCAD drawing without changing it.",
+    "Preview a safe Revit or AutoCAD change before executing it."
+  ],
+  "brandColor": "#1257E5",
+  "logoStatus": "awaiting-owner-selection",
+  "publisherIdentity": null,
+  "manualAttestationsRequired": true
+}

@@ -12,7 +12,7 @@ Autodesk API operations inside the target application's connector.
 
 Before the first Autodesk operation in a task, run the bundled
 `scripts/Get-AecCodexHostStatus.ps1` script. It is read-only and returns JSON.
-Resolve the script relative to this plugin root; do not download a status
+Resolve the script relative to this skill root; do not download a status
 script or substitute remembered paths.
 
 - Continue to the MCP workflow only when the status is `healthy`.
@@ -22,7 +22,7 @@ script or substitute remembered paths.
 - Do not install, repair, upgrade, or uninstall native components during the
   read-only check.
 - Do not treat installing this Codex plugin as consent to modify Autodesk,
-  AppData, Python environments, or other local software.
+  AppData, the local MCP registration, or other local software.
 
 ## Workflow
 

@@ -1,6 +1,6 @@
 {
   "name": "aec-codex",
-  "version": "1.1.0-rc.2",
+  "version": "1.1.0-rc.3",
   "description": "Connect Codex to local Autodesk Revit and AutoCAD sessions with structured MCP providers and transactional fallback.",
   "author": {
     "name": "AEC Codex"
@@ -17,6 +17,9 @@
     "developerName": "AEC Codex",
     "category": "Productivity",
     "websiteURL": "https://github.com/Sideswipe3751/aec-codex",
+    "privacyPolicyURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/privacy.md",
+    "termsOfServiceURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/terms.md",
+    "brandColor": "#1257E5",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": [
       "Set up AEC Codex on this Windows PC and verify its local Autodesk connectors.",

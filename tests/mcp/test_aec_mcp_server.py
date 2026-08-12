@@ -216,7 +216,7 @@ class McpServerTests(unittest.TestCase):
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
         responses = [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
-        self.assertEqual("1.1.0-rc.2", responses[0]["result"]["serverInfo"]["version"])
+        self.assertEqual("1.1.0-rc.3", responses[0]["result"]["serverInfo"]["version"])
         self.assertEqual(10, len(responses[1]["result"]["tools"]))
 
     def test_provider_discovery_schema_and_calls(self):

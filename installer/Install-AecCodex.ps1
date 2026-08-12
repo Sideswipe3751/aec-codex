@@ -75,7 +75,33 @@ function Find-CodexCli {
             Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
         if ($candidate) { return $candidate.FullName }
     }
+    $appServerCandidate = Join-Path (Get-UserPath UserProfile) '.codex\plugins\.plugin-appserver\codex.exe'
+    if (Test-Path -LiteralPath $appServerCandidate -PathType Leaf) {
+        try { & $appServerCandidate --version *> $null; if ($LASTEXITCODE -eq 0) { return $appServerCandidate } } catch { }
+    }
     return $null
+}
+
+function Test-CodexMcp([string]$Cli, [string]$Name) {
+    try {
+        & $Cli mcp get $Name --json *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch { return $false }
+}
+
+function Remove-CodexMcp([string]$Cli, [string]$Name) {
+    if (-not (Test-CodexMcp $Cli $Name)) { return }
+    & $Cli mcp remove $Name *> $null
+    if ($LASTEXITCODE -ne 0) { throw "Unable to remove Codex MCP registration '$Name'." }
+}
+
+function Register-CodexMcp([string]$Cli, [string]$Name, [string]$Launcher) {
+    Remove-CodexMcp $Cli $Name
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    & $Cli mcp add $Name -- $powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Launcher
+    if ($LASTEXITCODE -ne 0 -or -not (Test-CodexMcp $Cli $Name)) {
+        throw "Unable to register Codex MCP '$Name'."
+    }
 }
 
 function Update-PersonalMarketplace([string]$MarketplacePath) {
@@ -117,11 +143,18 @@ $stateRoot = Join-Path $local 'AEC Codex'
 $statePath = Join-Path $stateRoot 'install-state.json'
 $hostRoot = Join-Path $stateRoot 'host'
 $maintenanceRoot = Join-Path $stateRoot 'maintenance'
+$codexConfigPath = Join-Path $profile '.codex\config.toml'
+$codexMcpName = 'aec-codex-local'
 $baseTargets = @($revitDllTarget, $revitManifestTarget, $cadBundleTarget, $hostRoot, $maintenanceRoot, $statePath)
 $targets = if ($InstallMode -eq 'Development') { @($baseTargets) + @($pluginTarget) } else { @($baseTargets) }
 
 if ($Action -eq 'Uninstall') {
     if (-not $PSCmdlet.ShouldProcess("AEC Codex current-user $InstallMode installation", 'Uninstall')) { return }
+    if ($InstallMode -eq 'HostOnly') {
+        $cli = Find-CodexCli
+        if (-not $cli) { throw 'Codex CLI is unavailable; the external MCP registration cannot be removed safely.' }
+        Remove-CodexMcp $cli $codexMcpName
+    }
     if (-not $SkipProviders) {
         & (Join-Path $SourceRoot 'installer\Install-AecProviders.ps1') -Action Uninstall -SourceRoot $SourceRoot -Confirm:$false
     }
@@ -148,21 +181,27 @@ if ($Action -eq 'Uninstall') {
 
 $running = Get-Process -Name Revit,acad -ErrorAction SilentlyContinue
 if ($running) { throw 'Close Revit and AutoCAD before installing or repairing AEC Codex.' }
-$python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $python) { throw 'Python 3.11 or newer is required by the local MCP host.' }
-$pythonVersion = & $python.Source -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sep=chr(46))'
-if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11') {
-    throw "Python 3.11 or newer is required; found $pythonVersion."
-}
 if (-not (Test-Path -LiteralPath (Join-Path $SourceRoot 'plugins\aec-codex\.codex-plugin\plugin.json'))) {
     throw "AEC Codex source/release root is invalid: $SourceRoot"
 }
 $sourcePluginManifest = Join-Path $SourceRoot 'plugins\aec-codex\.codex-plugin\plugin.json'
 $sourcePluginJson = Get-Content -LiteralPath $sourcePluginManifest -Raw | ConvertFrom-Json
 $releaseVersion = ([string]$sourcePluginJson.version) -replace '\+.*$',''
-if ($releaseVersion -ne '1.1.0-rc.2') { throw "This installer requires AEC Codex 1.1.0-rc.2; found $releaseVersion." }
+if ($releaseVersion -ne '1.1.0-rc.3') { throw "This installer requires AEC Codex 1.1.0-rc.3; found $releaseVersion." }
 if ($InstallMode -eq 'Development' -and -not (Test-Path -LiteralPath (Join-Path $SourceRoot 'plugins\aec-codex\skills\aec-codex\SKILL.md'))) {
     throw 'Development mode requires a full source checkout. The release host payload supports HostOnly mode.'
+}
+if ($InstallMode -eq 'Development') {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) { throw 'Python 3.11 or newer is required for a development installation.' }
+    $pythonVersion = & $python.Source -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sep=chr(46))'
+    if ($LASTEXITCODE -ne 0 -or [version]$pythonVersion -lt [version]'3.11') {
+        throw "Python 3.11 or newer is required for development; found $pythonVersion."
+    }
+}
+$packagedPrivatePython = Join-Path $SourceRoot 'runtime\python\python.exe'
+if ($InstallMode -eq 'HostOnly' -and -not (Test-Path -LiteralPath $packagedPrivatePython -PathType Leaf)) {
+    throw 'The release is missing its private Python runtime.'
 }
 
 if (-not $SkipBuild) {
@@ -181,6 +220,11 @@ New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
 $backupRoot = Join-Path $stateRoot ('rollback-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
 $records = New-Object System.Collections.ArrayList
+$codexConfigExisted = Test-Path -LiteralPath $codexConfigPath -PathType Leaf
+$codexConfigBackup = Join-Path $backupRoot 'codex-config.toml'
+if ($InstallMode -eq 'HostOnly' -and $codexConfigExisted) {
+    Copy-Item -LiteralPath $codexConfigPath -Destination $codexConfigBackup -Force
+}
 
 try {
     foreach ($target in $targets) { Backup-Path $target $backupRoot $records }
@@ -226,6 +270,14 @@ try {
 
     $versionedHostRoot = Join-Path $hostRoot $releaseVersion
     Copy-Directory (Join-Path $SourceRoot 'plugins\aec-codex\mcp-server') (Join-Path $versionedHostRoot 'mcp-server')
+    $launcher = Join-Path $versionedHostRoot 'Start-AecCodexMcp.ps1'
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'plugins\aec-codex\scripts\Start-AecCodexMcp.ps1') -Destination $launcher -Force
+    $privatePython = $null
+    if ($InstallMode -eq 'HostOnly') {
+        Copy-Directory (Join-Path $SourceRoot 'runtime') (Join-Path $versionedHostRoot 'runtime')
+        $privatePython = Join-Path $versionedHostRoot 'runtime\python\python.exe'
+        if (-not (Test-Path -LiteralPath $privatePython -PathType Leaf)) { throw 'The installed private Python runtime is incomplete.' }
+    }
     Copy-Directory (Join-Path $SourceRoot 'installer') (Join-Path $maintenanceRoot 'installer')
     $localMcpServer = Join-Path $versionedHostRoot 'mcp-server\aec_mcp_server.py'
     $uninstaller = Join-Path $maintenanceRoot 'installer\Install-AecCodex.ps1'
@@ -235,8 +287,10 @@ try {
         (New-FileRecord (Join-Path $cadBundleTarget 'Contents\Windows\Aec.Codex.AutoCAD2024.dll')),
         (New-FileRecord (Join-Path $cadBundleTarget 'PackageContents.xml')),
         (New-FileRecord $localMcpServer),
+        (New-FileRecord $launcher),
         (New-FileRecord $uninstaller)
     )
+    if ($privatePython) { $stateFiles += (New-FileRecord $privatePython) }
     if (-not $SkipProviders) {
         $stateFiles += @(
             [ordered]@{ path=(Join-Path $stateRoot 'providers\active.json'); sha256=$null },
@@ -244,7 +298,7 @@ try {
         )
     }
     [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         version = $releaseVersion
         installedAtUtc = [DateTime]::UtcNow.ToString('o')
         installMode = $InstallMode
@@ -252,14 +306,27 @@ try {
         revit2024 = $revitDllTarget
         autocad2024 = $cadBundleTarget
         localMcpServer = $localMcpServer
+        privatePython = $privatePython
+        mcpLauncher = $launcher
+        codexMcpName = if ($InstallMode -eq 'HostOnly') { $codexMcpName } else { $null }
         uninstaller = $uninstaller
         codexPlugin = if ($InstallMode -eq 'Development') { $pluginTarget } else { $null }
         providersInstalled = (-not $SkipProviders)
         files = $stateFiles
     } | ConvertTo-Json -Depth 8 | ForEach-Object { Write-Utf8NoBom $statePath $_ }
 
+    if ($InstallMode -eq 'HostOnly') {
+        $cli = Find-CodexCli
+        if (-not $cli) { throw 'Codex CLI is unavailable; the local MCP could not be registered.' }
+        Register-CodexMcp $cli $codexMcpName $launcher
+    }
+
     if (-not $SkipProviders) {
-        & (Join-Path $SourceRoot 'installer\Install-AecProviders.ps1') -Action $Action -SourceRoot $SourceRoot -SkipBuild:$SkipBuild -Confirm:$false
+        $providerArguments = @{
+            Action=$Action; SourceRoot=$SourceRoot; SkipBuild=$SkipBuild; Confirm=$false
+        }
+        if ($privatePython) { $providerArguments.PrivatePython = $privatePython }
+        & (Join-Path $SourceRoot 'installer\Install-AecProviders.ps1') @providerArguments
     }
 
     Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -267,6 +334,16 @@ try {
 } catch {
     $failure = $_.Exception.Message
     Restore-Backups $records
+    if ($InstallMode -eq 'HostOnly') {
+        try {
+            if ($codexConfigExisted) {
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $codexConfigPath) | Out-Null
+                Copy-Item -LiteralPath $codexConfigBackup -Destination $codexConfigPath -Force
+            } elseif (Test-Path -LiteralPath $codexConfigPath) {
+                Remove-Item -LiteralPath $codexConfigPath -Force
+            }
+        } catch { }
+    }
     $rollbackCli = if ($InstallMode -eq 'Development') { Find-CodexCli } else { $null }
     if ($rollbackCli) {
         try {

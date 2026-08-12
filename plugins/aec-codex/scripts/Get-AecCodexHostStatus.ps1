@@ -23,20 +23,16 @@ function Get-PropertyValue($Object, [string]$Name) {
     return $null
 }
 
-function Get-PythonStatus([version]$MinimumVersion) {
-    $command = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $command) {
-        return [ordered]@{ found=$false; command=$null; version=$null; supported=$false }
+function Find-CodexCli {
+    $command = Get-Command codex -ErrorAction SilentlyContinue
+    if ($command) {
+        try { & $command.Source --version *> $null; if ($LASTEXITCODE -eq 0) { return $command.Source } } catch { }
     }
-    try {
-        $value = & $command.Source -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sys.version_info.micro,sep=chr(46))' 2>$null
-        $parsed = [version]$value
-        return [ordered]@{
-            found=$true; command=$command.Source; version=$parsed.ToString(); supported=($parsed -ge $MinimumVersion)
-        }
-    } catch {
-        return [ordered]@{ found=$true; command=$command.Source; version=$null; supported=$false }
+    $candidate = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)) '.codex\plugins\.plugin-appserver\codex.exe'
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        try { & $candidate --version *> $null; if ($LASTEXITCODE -eq 0) { return $candidate } } catch { }
     }
+    return $null
 }
 
 function Test-ProductPath([string[]]$Roots, [string]$RelativePath) {
@@ -57,12 +53,9 @@ if (-not $StateRoot) { $StateRoot = Join-Path $LocalRoot 'AEC Codex' }
 if (-not $ProgramFilesRoot) { $ProgramFilesRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles) }
 if (-not $ProgramFilesX86Root) { $ProgramFilesX86Root = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86) }
 
-$minimumPython = [version]$manifest.minimumPythonVersion
-$python = Get-PythonStatus $minimumPython
 $platformSupported = ($env:OS -eq 'Windows_NT' -and [Environment]::Is64BitOperatingSystem)
 $prerequisiteIssues = New-Object System.Collections.ArrayList
-if (-not $platformSupported) { [void]$prerequisiteIssues.Add('AEC Codex rc.2 requires 64-bit Windows.') }
-if (-not $python.supported) { [void]$prerequisiteIssues.Add("Python $minimumPython or newer is required by this release candidate.") }
+if (-not $platformSupported) { [void]$prerequisiteIssues.Add('AEC Codex rc.3 requires 64-bit Windows.') }
 
 $programRoots = @($ProgramFilesRoot, $ProgramFilesX86Root)
 $products = [ordered]@{
@@ -85,6 +78,17 @@ $stateError = $null
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
     try { $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json }
     catch { $stateError = $_.Exception.Message }
+}
+
+$mcpName = if ($state -and (Get-PropertyValue $state 'codexMcpName')) { [string](Get-PropertyValue $state 'codexMcpName') } else { 'aec-codex-local' }
+$mcpRequired = ($state -and (Get-PropertyValue $state 'codexMcpName') -and [string](Get-PropertyValue $state 'installMode') -eq 'HostOnly')
+$codexCli = Find-CodexCli
+$mcpRegistered = $false
+if ($mcpRequired -and $codexCli) {
+    try {
+        & $codexCli mcp get $mcpName --json *> $null
+        $mcpRegistered = ($LASTEXITCODE -eq 0)
+    } catch { $mcpRegistered = $false }
 }
 
 $missingFiles = New-Object System.Collections.ArrayList
@@ -138,7 +142,7 @@ if (-not $state) {
     if ($stateError -or $knownFilesExist.Count -gt 0) { $status = 'needs_repair'; $recommendedAction = 'repair' }
     elseif ($prerequisiteIssues.Count -gt 0) { $status = 'needs_prerequisite'; $recommendedAction = 'install_prerequisite' }
     else { $status = 'not_installed'; $recommendedAction = 'install' }
-} elseif ($stateError -or $missingFiles.Count -gt 0 -or $changedFiles.Count -gt 0) {
+} elseif ($stateError -or $missingFiles.Count -gt 0 -or $changedFiles.Count -gt 0 -or ($mcpRequired -and -not $mcpRegistered)) {
     $status = 'needs_repair'; $recommendedAction = 'repair'
 } elseif ([string](Get-PropertyValue $state 'version') -ne [string]$manifest.version) {
     $status = 'needs_upgrade'; $recommendedAction = 'upgrade'
@@ -164,7 +168,16 @@ if (-not $state) {
         x64 = [Environment]::Is64BitOperatingSystem
         supported = $platformSupported
     }
-    python = $python
+    runtime = [ordered]@{
+        bundled = $true
+        pythonRequiredFromUser = $false
+    }
+    codexMcp = [ordered]@{
+        name = $mcpName
+        required = [bool]$mcpRequired
+        cliFound = [bool]$codexCli
+        registered = [bool]$mcpRegistered
+    }
     products = $products
     runningAutodesk = $running
     prerequisiteIssues = @($prerequisiteIssues)

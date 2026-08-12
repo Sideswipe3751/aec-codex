@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$Version = '1.1.0-rc.2',
+    [string]$Version = '1.1.0-rc.3',
     [string]$OutputDirectory
 )
 
@@ -19,6 +19,12 @@ function Copy-ReleasePath([string]$RelativePath, [string]$StageRoot) {
     $destination = Join-Path $StageRoot $RelativePath
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
     Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force
+}
+
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    $parent = Split-Path -Parent $Path
+    if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    [IO.File]::WriteAllText($Path, $Content, (New-Object Text.UTF8Encoding($false)))
 }
 
 & dotnet build (Join-Path $SourceRoot 'AEC.Codex.slnx') -c Release
@@ -59,6 +65,7 @@ try {
         'installer\bootstrap.ps1',
         'plugins\aec-codex\.codex-plugin\plugin.json',
         'plugins\aec-codex\mcp-server',
+        'plugins\aec-codex\scripts\Start-AecCodexMcp.ps1',
         'plugins\aec-codex\providers\providers.lock.json',
         'providers',
         'src\Aec.Codex.Revit2024\Aec.Codex.Revit2024.addin',
@@ -95,10 +102,87 @@ try {
         Move-Item -LiteralPath $minimalRoot -Destination $resolvedNodeRoot
     }
 
+    # Public installs must be self-contained. Build a relocatable CPython
+    # runtime now, on the trusted release machine, rather than asking every
+    # user to install Python and resolve provider dependencies during setup.
+    $providerLockPath = Join-Path $stageRoot 'plugins\aec-codex\providers\providers.lock.json'
+    $providerLock = Get-Content -LiteralPath $providerLockPath -Raw | ConvertFrom-Json
+    $pythonSpec = $providerLock.runtimes.'python-windows-x64'
+    if (-not $pythonSpec -or -not $pythonSpec.url -or $pythonSpec.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+        throw 'The pinned Windows Python runtime is missing or invalid.'
+    }
+    $buildPython = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $buildPython) { throw 'Python is required on the release build machine.' }
+    $expectedPython = [version]$pythonSpec.version
+    $buildPythonVersionText = & $buildPython.Source -c 'import sys;print(sys.version_info.major,sys.version_info.minor,sys.version_info.micro,sep=chr(46))'
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to read the release build Python version.' }
+    $buildPythonVersion = [version]$buildPythonVersionText
+    if ($buildPythonVersion.Major -ne $expectedPython.Major -or $buildPythonVersion.Minor -ne $expectedPython.Minor) {
+        throw "Release build Python $buildPythonVersion does not match pinned runtime $expectedPython."
+    }
+
+    $pythonArchive = Join-Path $temporaryRoot 'python-embed.zip'
+    Invoke-WebRequest -Uri ([uri]$pythonSpec.url) -OutFile $pythonArchive -UseBasicParsing
+    $pythonArchiveHash = (Get-FileHash -LiteralPath $pythonArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($pythonArchiveHash -ne ([string]$pythonSpec.sha256).ToLowerInvariant()) {
+        throw "Python runtime checksum mismatch. Expected $($pythonSpec.sha256), received $pythonArchiveHash."
+    }
+    $pythonRoot = Join-Path $stageRoot 'runtime\python'
+    Expand-Archive -LiteralPath $pythonArchive -DestinationPath $pythonRoot -Force
+    $sitePackages = Join-Path $pythonRoot 'Lib\site-packages'
+    New-Item -ItemType Directory -Force -Path $sitePackages | Out-Null
+    $pthFile = Get-ChildItem -LiteralPath $pythonRoot -Filter 'python*._pth' -File | Select-Object -First 1
+    if (-not $pthFile) { throw 'The embedded Python path configuration is missing.' }
+    $stdlibZip = 'python' + $expectedPython.Major + $expectedPython.Minor + '.zip'
+    Write-Utf8NoBom $pthFile.FullName (($stdlibZip, '.', 'Lib\site-packages', 'import site') -join [Environment]::NewLine)
+
+    $providerWheel = Get-ChildItem -LiteralPath (Join-Path $providerStage ('autocad-pro\' + (($providerLock.providers | Where-Object id -eq 'autocad-pro').version))) -Filter 'autocad_mcp_pro-*.whl' -File | Select-Object -First 1
+    if (-not $providerWheel) { throw 'The verified AutoCAD provider wheel is missing from the release stage.' }
+    $autocadSpec = $providerLock.providers | Where-Object id -eq 'autocad-pro'
+    $constraintsPath = Join-Path $stageRoot ([string]$autocadSpec.runtimeConstraints.path)
+    if (-not (Test-Path -LiteralPath $constraintsPath -PathType Leaf) -or $autocadSpec.runtimeConstraints.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+        throw 'The pinned AutoCAD runtime constraints are missing or invalid.'
+    }
+    $constraintsHash = (Get-FileHash -LiteralPath $constraintsPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($constraintsHash -ne ([string]$autocadSpec.runtimeConstraints.sha256).ToLowerInvariant()) {
+        throw "AutoCAD runtime constraints checksum mismatch. Expected $($autocadSpec.runtimeConstraints.sha256), received $constraintsHash."
+    }
+    & $buildPython.Source -m pip install --quiet --disable-pip-version-check --no-input --no-compile --constraint $constraintsPath --target $sitePackages ($providerWheel.FullName + '[com]')
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to assemble the private AutoCAD provider runtime.' }
+    $privatePython = Join-Path $pythonRoot 'python.exe'
+    $privateProviderServer = Join-Path $sitePackages 'server.py'
+    if (-not (Test-Path -LiteralPath $privatePython -PathType Leaf) -or -not (Test-Path -LiteralPath $privateProviderServer -PathType Leaf)) {
+        throw 'The assembled private Python runtime is incomplete.'
+    }
+    & $privatePython -c 'import ezdxf, fastmcp, pydantic, PIL, win32com.client'
+    if ($LASTEXITCODE -ne 0) { throw 'The assembled private Python runtime failed its import test.' }
+    $stagedMcpServer = Join-Path $stageRoot 'plugins\aec-codex\mcp-server\aec_mcp_server.py'
+    $initializeRequest = [ordered]@{
+        jsonrpc='2.0'; id=1; method='initialize'; params=[ordered]@{
+            protocolVersion='2025-06-18'; capabilities=[ordered]@{}
+            clientInfo=[ordered]@{ name='aec-codex-release-build'; version=$Version }
+        }
+    } | ConvertTo-Json -Depth 6 -Compress
+    $initializeErrorPath = Join-Path $temporaryRoot 'mcp-initialize.stderr.txt'
+    $initializeOutput = @($initializeRequest | & $privatePython $stagedMcpServer 2>$initializeErrorPath)
+    $initializeExitCode = $LASTEXITCODE
+    $initializeResponse = $initializeOutput | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1
+    if ($initializeExitCode -ne 0 -or -not $initializeResponse) {
+        $initializeError = if (Test-Path -LiteralPath $initializeErrorPath) { (Get-Content -LiteralPath $initializeErrorPath -Raw).Trim() } else { '' }
+        throw "The private runtime could not initialize the staged AEC Codex MCP server (exit $initializeExitCode). $initializeError"
+    }
+    try { $initialized = $initializeResponse | ConvertFrom-Json } catch { throw 'The staged AEC Codex MCP returned invalid initialization JSON.' }
+    if ($initialized.result.serverInfo.name -ne 'aec-codex' -or $initialized.result.serverInfo.version -ne $Version) {
+        throw 'The staged AEC Codex MCP server identity or version is invalid.'
+    }
+
     foreach ($required in @(
         'installer\Install-AecCodex.ps1',
         'plugins\aec-codex\.codex-plugin\plugin.json',
         'plugins\aec-codex\mcp-server\aec_mcp_server.py',
+        'plugins\aec-codex\scripts\Start-AecCodexMcp.ps1',
+        'runtime\python\python.exe',
+        'runtime\python\Lib\site-packages\server.py',
         'artifacts\providers\build-manifest.json'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $stageRoot $required) -PathType Leaf)) {
@@ -109,7 +193,9 @@ try {
         throw 'Host payload must not contain the self-pinning release manifest.'
     }
     $forbidden = @(Get-ChildItem -LiteralPath $stageRoot -File -Recurse -Force | Where-Object {
-        $_.Name -match '^(\.env|\.npmrc|id_rsa|credentials)$' -or $_.Extension -match '^\.(pem|key|pfx|p12)$'
+        $isCertifiTrustStore = $_.FullName.EndsWith('runtime\python\Lib\site-packages\certifi\cacert.pem', [StringComparison]::OrdinalIgnoreCase)
+        $_.Name -match '^(\.env|\.npmrc|id_rsa|credentials)$' -or
+            (($_.Extension -match '^\.(pem|key|pfx|p12)$') -and -not $isCertifiTrustStore)
     })
     if ($forbidden.Count -gt 0) {
         throw ('Host payload contains forbidden files: ' + (($forbidden | Select-Object -ExpandProperty FullName) -join ', '))

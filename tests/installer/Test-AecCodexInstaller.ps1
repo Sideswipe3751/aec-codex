@@ -9,6 +9,8 @@ $statusScript = Join-Path $repoRoot 'plugins\aec-codex\scripts\Get-AecCodexHostS
 $hostInstaller = Join-Path $repoRoot 'plugins\aec-codex\scripts\Install-AecCodexHost.ps1'
 $mainInstaller = Join-Path $repoRoot 'installer\Install-AecCodex.ps1'
 $bootstrap = Join-Path $repoRoot 'installer\bootstrap.ps1'
+$releaseBuilder = Join-Path $repoRoot 'installer\New-AecCodexRelease.ps1'
+$submissionBuilder = Join-Path $repoRoot 'installer\New-AecCodexSubmission.ps1'
 $pluginManifestPath = Join-Path $repoRoot 'plugins\aec-codex\.codex-plugin\plugin.json'
 $releaseManifestPath = Join-Path $repoRoot 'plugins\aec-codex\release-manifest.json'
 $marketplacePath = Join-Path $repoRoot '.agents\plugins\marketplace.json'
@@ -46,7 +48,7 @@ function Invoke-Status([string]$CaseRoot, [string]$CodexStart) {
 New-Item -ItemType Directory -Force -Path $temporaryRoot | Out-Null
 try {
     Invoke-Test 'PowerShell scripts parse on Windows PowerShell' {
-        foreach ($path in @($statusScript, $hostInstaller, $mainInstaller, $bootstrap, (Join-Path $repoRoot 'installer\Install-AecProviders.ps1'))) {
+        foreach ($path in @($statusScript, $hostInstaller, $mainInstaller, $bootstrap, $releaseBuilder, $submissionBuilder, (Join-Path $repoRoot 'installer\Install-AecProviders.ps1'))) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
@@ -58,14 +60,15 @@ try {
         $plugin = Get-Content -LiteralPath $pluginManifestPath -Raw | ConvertFrom-Json
         $release = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
         $marketplace = Get-Content -LiteralPath $marketplacePath -Raw | ConvertFrom-Json
-        Assert ($plugin.version -eq '1.1.0-rc.2') 'Plugin version is not rc.2.'
+        Assert ($plugin.version -eq '1.1.0-rc.3') 'Plugin version is not rc.3.'
         Assert ($release.version -eq $plugin.version) 'Release manifest version differs from plugin version.'
-        Assert ($release.sha256 -match '^[a-f0-9]{64}$') 'Release manifest has no finalized SHA-256.'
+        if ($release.published) { Assert ($release.sha256 -match '^[a-f0-9]{64}$') 'Published release manifest has no finalized SHA-256.' }
+        Assert ($release.privatePythonVersion -eq '3.12.10') 'Private Python runtime version is not pinned.'
         Assert ($plugin.interface.defaultPrompt.Count -le 3) 'Plugin has more than three starter prompts.'
         Assert ($marketplace.plugins.Count -eq 1) 'Repository marketplace should contain one plugin.'
         Assert ($marketplace.plugins[0].source.path -eq './plugins/aec-codex') 'Marketplace source path is invalid.'
         $serverText = Get-Content -LiteralPath (Join-Path $repoRoot 'plugins\aec-codex\mcp-server\aec_mcp_server.py') -Raw
-        Assert ($serverText.Contains('SERVER_VERSION = "1.1.0-rc.2"')) 'MCP host version differs from plugin version.'
+        Assert ($serverText.Contains('SERVER_VERSION = "1.1.0-rc.3"')) 'MCP host version differs from plugin version.'
         $versionedFiles = @(
             'plugins\aec-codex\mcp-server\provider_gateway.py',
             'src\Aec.Codex.Bridge\ConnectorContracts.cs',
@@ -74,8 +77,8 @@ try {
         )
         foreach ($relativePath in $versionedFiles) {
             $text = Get-Content -LiteralPath (Join-Path $repoRoot $relativePath) -Raw
-            Assert ($text.Contains('1.1.0-rc.2')) "$relativePath does not report rc.2."
-            Assert (-not $text.Contains('1.1.0-rc.1')) "$relativePath still reports rc.1."
+            Assert ($text.Contains('1.1.0-rc.3')) "$relativePath does not report rc.3."
+            Assert (-not $text.Contains('1.1.0-rc.2')) "$relativePath still reports rc.2."
         }
     }
 
@@ -97,12 +100,12 @@ try {
     Invoke-Test 'healthy state verifies installed hashes' {
         $caseRoot = Join-Path $temporaryRoot 'healthy'
         $stateRoot = Join-Path $caseRoot 'local\AEC Codex'
-        $installedFile = Join-Path $stateRoot 'host\1.1.0-rc.2\mcp-server\aec_mcp_server.py'
+        $installedFile = Join-Path $stateRoot 'host\1.1.0-rc.3\mcp-server\aec_mcp_server.py'
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installedFile) | Out-Null
         Set-Content -LiteralPath $installedFile -Value 'healthy' -Encoding UTF8
         $hash = (Get-FileHash -LiteralPath $installedFile -Algorithm SHA256).Hash.ToLowerInvariant()
         [ordered]@{
-            schemaVersion=2; version='1.1.0-rc.2'; installedAtUtc='2026-08-11T20:00:00Z'
+            schemaVersion=3; version='1.1.0-rc.3'; installedAtUtc='2026-08-11T20:00:00Z'
             installMode='HostOnly'; restartRequired=$true
             files=@([ordered]@{ path=$installedFile; sha256=$hash })
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
@@ -119,7 +122,7 @@ try {
         $stateRoot = Join-Path $caseRoot 'local\AEC Codex'
         New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
         [ordered]@{
-            schemaVersion=2; version='1.1.0-rc.2'; installedAtUtc='2026-08-11T20:00:00Z'
+            schemaVersion=3; version='1.1.0-rc.3'; installedAtUtc='2026-08-11T20:00:00Z'
             installMode='HostOnly'; restartRequired=$true; files=@()
         } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
         $result = Invoke-Status $caseRoot '2026-08-11T19:59:00Z'
@@ -157,6 +160,18 @@ try {
         $hostScriptText = Get-Content -LiteralPath $hostInstaller -Raw
         Assert ($hostScriptText.Contains('-InstallMode HostOnly')) 'Host bootstrap does not uninstall in HostOnly mode.'
         Assert ($hostScriptText.Contains("InstallMode = 'HostOnly'")) 'Host bootstrap does not install in HostOnly mode.'
+        Assert ($installerText.Contains("`$codexMcpName = 'aec-codex-local'")) 'HostOnly external MCP name is missing.'
+        Assert ($installerText.Contains('Register-CodexMcp')) 'HostOnly does not register the external MCP.'
+        Assert (-not $installerText.Contains('Python 3.11 or newer is required by the local MCP host.')) 'HostOnly still requires system Python.'
+    }
+
+    Invoke-Test 'release and submission builders enforce public contracts' {
+        $releaseText = Get-Content -LiteralPath $releaseBuilder -Raw
+        $submissionText = Get-Content -LiteralPath $submissionBuilder -Raw
+        Assert ($releaseText.Contains("'runtime\python\python.exe'")) 'Release does not require the private Python runtime.'
+        Assert ($releaseText.Contains("method='initialize'")) 'Release does not handshake with the staged MCP.'
+        Assert ($submissionText.Contains("'.mcp.json', 'marketplace.json'")) 'Submission bundle does not block local MCP or marketplace files.'
+        Assert ($submissionText.Contains("'^\.(exe|dll|whl|pfx|p12|pem|key)$'")) 'Submission bundle does not block native binaries and key files.'
     }
 } finally {
     if (Test-Path -LiteralPath $temporaryRoot) {
