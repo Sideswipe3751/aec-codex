@@ -24,7 +24,8 @@ function Copy-SubmissionPath([string]$Source, [string]$Destination) {
 $pluginRoot = Join-Path $SourceRoot 'plugins\aec-codex'
 $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') -Raw | ConvertFrom-Json
 $releaseManifest = Get-Content -LiteralPath (Join-Path $pluginRoot 'release-manifest.json') -Raw | ConvertFrom-Json
-if ([string]$pluginManifest.version -ne $Version -or [string]$releaseManifest.version -ne $Version) {
+$listing = Get-Content -LiteralPath (Join-Path $SourceRoot 'submission\listing.json') -Raw | ConvertFrom-Json
+if ([string]$pluginManifest.version -ne $Version -or [string]$releaseManifest.version -ne $Version -or [string]$listing.version -ne $Version) {
     throw "Plugin, release, and submission versions must all equal $Version."
 }
 if (-not $AllowUnpublished) {
@@ -34,18 +35,57 @@ if (-not $AllowUnpublished) {
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('aec-codex-submission-' + [Guid]::NewGuid().ToString('N'))
 $stageRoot = Join-Path $temporaryRoot 'aec-codex'
-New-Item -ItemType Directory -Force -Path $stageRoot,$OutputDirectory | Out-Null
+$stageSkillRoot = Join-Path $stageRoot 'skills\aec-codex'
+New-Item -ItemType Directory -Force -Path $stageRoot,$stageSkillRoot,$OutputDirectory | Out-Null
 try {
     $sourceSkill = Join-Path $pluginRoot 'skills\aec-codex'
-    Copy-SubmissionPath (Join-Path $sourceSkill 'SKILL.md') (Join-Path $stageRoot 'SKILL.md')
-    Copy-SubmissionPath (Join-Path $sourceSkill 'references') (Join-Path $stageRoot 'references')
-    Copy-SubmissionPath (Join-Path $sourceSkill 'agents') (Join-Path $stageRoot 'agents')
-    Copy-SubmissionPath (Join-Path $pluginRoot 'scripts\Get-AecCodexHostStatus.ps1') (Join-Path $stageRoot 'scripts\Get-AecCodexHostStatus.ps1')
-    Copy-SubmissionPath (Join-Path $pluginRoot 'scripts\Install-AecCodexHost.ps1') (Join-Path $stageRoot 'scripts\Install-AecCodexHost.ps1')
-    Copy-SubmissionPath (Join-Path $pluginRoot 'release-manifest.json') (Join-Path $stageRoot 'release-manifest.json')
+    Copy-SubmissionPath (Join-Path $sourceSkill 'SKILL.md') (Join-Path $stageSkillRoot 'SKILL.md')
+    Copy-SubmissionPath (Join-Path $sourceSkill 'references') (Join-Path $stageSkillRoot 'references')
+    Copy-SubmissionPath (Join-Path $sourceSkill 'agents') (Join-Path $stageSkillRoot 'agents')
+    Copy-SubmissionPath (Join-Path $pluginRoot 'scripts\Get-AecCodexHostStatus.ps1') (Join-Path $stageSkillRoot 'scripts\Get-AecCodexHostStatus.ps1')
+    Copy-SubmissionPath (Join-Path $pluginRoot 'scripts\Install-AecCodexHost.ps1') (Join-Path $stageSkillRoot 'scripts\Install-AecCodexHost.ps1')
+    Copy-SubmissionPath (Join-Path $pluginRoot 'release-manifest.json') (Join-Path $stageSkillRoot 'release-manifest.json')
     Copy-SubmissionPath (Join-Path $SourceRoot 'LICENSE') (Join-Path $stageRoot 'LICENSE')
+    Copy-SubmissionPath (Join-Path $SourceRoot 'branding\official\aec-codex-logo-transparent.png') (Join-Path $stageRoot 'assets\aec-codex-logo-transparent.png')
 
-    $skillText = Get-Content -LiteralPath (Join-Path $stageRoot 'SKILL.md') -Raw
+    $publicPluginManifest = [ordered]@{
+        name = 'aec-codex'
+        version = $Version
+        description = [string]$listing.shortDescription
+        author = [ordered]@{
+            name = [string]$listing.publisherIdentity
+            url = 'https://github.com/Sideswipe3751'
+        }
+        homepage = [string]$listing.websiteURL
+        repository = 'https://github.com/Sideswipe3751/aec-codex'
+        license = 'Apache-2.0'
+        keywords = @('autocad', 'revit', 'autodesk', 'aec', 'codex')
+        skills = './skills/'
+        interface = [ordered]@{
+            displayName = [string]$listing.name
+            shortDescription = [string]$listing.shortDescription
+            longDescription = [string]$listing.longDescription
+            developerName = [string]$listing.publisherIdentity
+            category = [string]$listing.category
+            capabilities = @('Interactive', 'Read', 'Write')
+            websiteURL = [string]$listing.websiteURL
+            privacyPolicyURL = [string]$listing.privacyPolicyURL
+            termsOfServiceURL = [string]$listing.termsOfServiceURL
+            defaultPrompt = @($listing.starterPrompts)
+            brandColor = [string]$listing.brandColor
+            composerIcon = './assets/aec-codex-logo-transparent.png'
+            logo = './assets/aec-codex-logo-transparent.png'
+        }
+    }
+    $manifestDirectory = Join-Path $stageRoot '.codex-plugin'
+    New-Item -ItemType Directory -Force -Path $manifestDirectory | Out-Null
+    [IO.File]::WriteAllText(
+        (Join-Path $manifestDirectory 'plugin.json'),
+        (($publicPluginManifest | ConvertTo-Json -Depth 10) + [Environment]::NewLine),
+        (New-Object Text.UTF8Encoding($false))
+    )
+
+    $skillText = Get-Content -LiteralPath (Join-Path $stageSkillRoot 'SKILL.md') -Raw
     if ($skillText -notmatch '(?s)^---\s*\r?\nname:\s*aec-codex\s*\r?\ndescription:') {
         throw 'Public skill front matter is invalid.'
     }
@@ -63,8 +103,33 @@ try {
     $zipName = "aec-codex-public-skill-$Version.zip"
     $zipPath = Join-Path $OutputDirectory $zipName
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [IO.Compression.ZipFile]::CreateFromDirectory($stageRoot, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $false)
+    Add-Type -AssemblyName System.IO.Compression
+    $stagePrefix = [IO.Path]::GetFullPath($stageRoot)
+    if (-not $stagePrefix.EndsWith([IO.Path]::DirectorySeparatorChar)) {
+        $stagePrefix += [IO.Path]::DirectorySeparatorChar
+    }
+    $zipStream = [IO.File]::Open($zipPath, [IO.FileMode]::CreateNew)
+    try {
+        $archive = New-Object IO.Compression.ZipArchive($zipStream, [IO.Compression.ZipArchiveMode]::Create, $false)
+        try {
+            foreach ($file in (Get-ChildItem -LiteralPath $stageRoot -File -Recurse | Sort-Object FullName)) {
+                $entryName = $file.FullName.Substring($stagePrefix.Length).Replace('\', '/')
+                $entry = $archive.CreateEntry($entryName, [IO.Compression.CompressionLevel]::Optimal)
+                $inputStream = $file.OpenRead()
+                $outputStream = $entry.Open()
+                try {
+                    $inputStream.CopyTo($outputStream)
+                } finally {
+                    $outputStream.Dispose()
+                    $inputStream.Dispose()
+                }
+            }
+        } finally {
+            $archive.Dispose()
+        }
+    } finally {
+        $zipStream.Dispose()
+    }
     $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText($zipPath + '.sha256', ($hash + '  ' + $zipName + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
     Write-Host "Submission bundle: $zipPath"
