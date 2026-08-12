@@ -30,7 +30,13 @@ jobs:
         run: |
           python -m json.tool plugins/aec-codex/.codex-plugin/plugin.json > $null
           python -m json.tool plugins/aec-codex/.mcp.json > $null
+          python -m json.tool plugins/aec-codex/release-manifest.json > $null
           python -m json.tool plugins/aec-codex/providers/providers.lock.json > $null
+          python -m json.tool .agents/plugins/marketplace.json > $null
+
+      - name: Run installer contract tests
+        shell: powershell
+        run: .\tests\installer\Test-AecCodexInstaller.ps1
 
       - name: Run MCP tests
         run: python -m unittest discover -s tests/mcp -p "test_*.py"

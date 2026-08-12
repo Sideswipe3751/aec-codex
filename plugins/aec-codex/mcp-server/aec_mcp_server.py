@@ -16,7 +16,7 @@ from typing import Any
 from provider_gateway import MANAGER as PROVIDERS, ProviderError
 
 
-SERVER_VERSION = "1.1.0-rc.1"
+SERVER_VERSION = "1.1.0-rc.2"
 SUPPORTED_MCP_VERSIONS = (
     "2025-11-25",
     "2025-06-18",

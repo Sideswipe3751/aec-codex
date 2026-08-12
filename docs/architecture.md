@@ -62,8 +62,14 @@ sets `rolledBack: true`; a successful response is emitted only after commit.
 
 ## Installer transaction
 
-The current-user installer stages version-specific files, moves every existing
-target into a private rollback directory, registers the personal Codex plugin,
-and deletes the rollback directory only after all steps succeed. Installation
-is refused while Revit or AutoCAD is running. Public release bootstrapping uses
-a pinned release URL and SHA-256 digest.
+The current-user installer has two explicit modes. `HostOnly` installs native
+connectors, structured providers, the local MCP host, a maintenance copy of the
+uninstaller, and versioned state without modifying any Codex marketplace.
+`Development` additionally installs and registers a cache-busted personal
+plugin from a full source checkout.
+
+Both modes move every existing target into a private rollback directory and
+delete it only after connector and provider installation succeeds. Installation
+is refused while Revit or AutoCAD is running. Marketplace first-run setup uses
+a pinned host-only release URL and SHA-256 digest. The host payload excludes the
+manifest that pins its hash, avoiding a self-referential archive.

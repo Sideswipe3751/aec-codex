@@ -2,8 +2,16 @@
   "mcpServers": {
     "aec-codex": {
       "type": "stdio",
-      "command": "python",
-      "args": ["./mcp-server/aec_mcp_server.py"]
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "./scripts/Start-AecCodexMcp.ps1"
+      ]
     }
   }
 }

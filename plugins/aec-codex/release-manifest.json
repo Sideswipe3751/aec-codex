@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "channel": "release-candidate",
+  "version": "1.1.0-rc.2",
+  "published": true,
+  "releaseZipUri": "https://github.com/Sideswipe3751/aec-codex/releases/download/v1.1.0-rc.2/aec-codex-host-1.1.0-rc.2-win-x64.zip",
+  "sha256": "4fa9d010e5b0bc0a3dc46b8621927991cfb0fd3a1b2bc39dcba9242f1d2066c6",
+  "minimumPythonVersion": "3.11",
+  "platform": "windows-x64",
+  "supportedProducts": {
+    "autocad": ["2024"],
+    "revit": ["2024"]
+  },
+  "installLocations": [
+    "%APPDATA%\\Autodesk\\ApplicationPlugins\\AEC Codex.bundle",
+    "%APPDATA%\\Autodesk\\Revit\\Addins\\2024",
+    "%LOCALAPPDATA%\\AEC Codex"
+  ]
+}

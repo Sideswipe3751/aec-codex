@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -18,6 +19,7 @@ SERVER_PATH = (
     / "mcp-server"
     / "aec_mcp_server.py"
 )
+LAUNCHER_PATH = SERVER_PATH.parents[1] / "scripts" / "Start-AecCodexMcp.ps1"
 sys.path.insert(0, str(SERVER_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("aec_mcp_server", SERVER_PATH)
 assert SPEC and SPEC.loader
@@ -176,6 +178,46 @@ class McpServerTests(unittest.TestCase):
         listed = MCP.process_message({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         self.assertEqual("aec-codex", initialized["result"]["serverInfo"]["name"])
         self.assertEqual(10, len(listed["result"]["tools"]))
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell launcher is Windows-only")
+    def test_powershell_launcher_preserves_stdio(self):
+        messages = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {"protocolVersion": "2025-11-25"},
+                    }
+                ),
+                json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
+            ]
+        ) + "\n"
+        environment = os.environ.copy()
+        environment["LOCALAPPDATA"] = self.temp.name
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(LAUNCHER_PATH),
+            ],
+            input=messages,
+            text=True,
+            capture_output=True,
+            timeout=20,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        responses = [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
+        self.assertEqual("1.1.0-rc.2", responses[0]["result"]["serverInfo"]["version"])
+        self.assertEqual(10, len(responses[1]["result"]["tools"]))
 
     def test_provider_discovery_schema_and_calls(self):
         listed = MCP.invoke_tool("aec_list_providers", {"probe": True})

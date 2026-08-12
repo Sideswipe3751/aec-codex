@@ -1,0 +1,20 @@
+{
+  "name": "aec-codex",
+  "interface": {
+    "displayName": "AEC Codex"
+  },
+  "plugins": [
+    {
+      "name": "aec-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/aec-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

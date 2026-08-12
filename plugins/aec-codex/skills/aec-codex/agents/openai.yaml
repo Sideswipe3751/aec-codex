@@ -1,4 +1,4 @@
 interface:
   display_name: "AEC Codex"
-  short_description: "Control Revit and AutoCAD with MCP tools"
-  default_prompt: "Use $aec-codex to discover structured tools, inspect the active Revit or AutoCAD document, preview writes, and modify it safely."
+  short_description: "Set up and control local Autodesk sessions"
+  default_prompt: "Use $aec-codex to check this Windows PC, set up the local host with my approval if needed, and then inspect Revit or AutoCAD safely."

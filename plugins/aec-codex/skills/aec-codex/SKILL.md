@@ -1,12 +1,28 @@
 ---
 name: aec-codex
-description: Control and inspect local Autodesk Revit and AutoCAD sessions through the AEC Codex MCP tools. Use when the user asks Codex to discover open Autodesk applications, inspect a project or drawing, query the current selection, read model or entity data, or create, update, or delete Revit elements and AutoCAD entities. Also use for version-aware routing, connector diagnostics, and transaction-safe Autodesk automation.
+description: Set up, repair, upgrade, diagnose, control, and inspect local Autodesk Revit and AutoCAD sessions through AEC Codex. Use when the user asks to install or configure AEC Codex, check connector health, discover open Autodesk applications, inspect a project or drawing, query the current selection, read model or entity data, or create, update, or delete Revit elements and AutoCAD entities. Also use for version-aware routing, connector diagnostics, and transaction-safe Autodesk automation.
 ---
 
 # AEC Codex
 
 Use the AEC Codex MCP server as the only route into Revit or AutoCAD. Keep all
 Autodesk API operations inside the target application's connector.
+
+## Setup gate
+
+Before the first Autodesk operation in a task, run the bundled
+`scripts/Get-AecCodexHostStatus.ps1` script. It is read-only and returns JSON.
+Resolve the script relative to this plugin root; do not download a status
+script or substitute remembered paths.
+
+- Continue to the MCP workflow only when the status is `healthy`.
+- For `not_installed`, `needs_prerequisite`, `needs_repair`,
+  `needs_upgrade`, or `restart_required`, read [setup.md](references/setup.md)
+  and follow that workflow.
+- Do not install, repair, upgrade, or uninstall native components during the
+  read-only check.
+- Do not treat installing this Codex plugin as consent to modify Autodesk,
+  AppData, Python environments, or other local software.
 
 ## Workflow
 
@@ -61,6 +77,8 @@ Autodesk API operations inside the target application's connector.
 
 ## References
 
+- Read [setup.md](references/setup.md) for installation, repair, upgrade,
+  restart, health-check, and uninstall requests.
 - Read [protocol.md](references/protocol.md) when diagnosing discovery, routing,
   authentication, request status, or connector compatibility.
 - Read [tool-routing.md](references/tool-routing.md) before generating fallback
