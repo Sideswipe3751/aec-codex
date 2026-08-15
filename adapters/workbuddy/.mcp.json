@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "bim-bridge": {
+      "type": "stdio",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "${CODEBUDDY_PLUGIN_ROOT}/skills/bim-bridge/scripts/Start-BimBridgeWorkBuddyMcp.ps1"
+      ],
+      "description": "BIM Bridge local Revit and AutoCAD tools"
+    }
+  }
+}

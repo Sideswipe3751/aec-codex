@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "bim-bridge": {
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "<ABSOLUTE_PATH_TO_SKILL>\\scripts\\Start-BimBridgeKimiMcp.ps1"
+      ],
+      "startupTimeoutMs": 30000
+    }
+  }
+}

@@ -29,6 +29,7 @@ jobs:
         shell: pwsh
         run: |
           python -m json.tool plugins/bim-bridge/.codex-plugin/plugin.json > $null
+          python -m json.tool kimi.plugin.json > $null
           python -m json.tool plugins/bim-bridge/release-manifest.json > $null
           python -m json.tool protocol/v1/baseline.json > $null
           python -m json.tool protocol/v2/aec-contract.schema.json > $null
@@ -41,6 +42,18 @@ jobs:
       - name: Validate BIM Bridge listing logo
         shell: powershell
         run: .\tests\branding\Test-BimBridgeLogo.ps1
+
+      - name: Validate Repo Marketplace install contract
+        shell: powershell
+        run: .\tests\plugin\Test-BimBridgeRepoInstall.ps1
+
+      - name: Validate WorkBuddy adapter
+        shell: powershell
+        run: .\tests\adapters\workbuddy\Test-WorkBuddyAdapter.ps1
+
+      - name: Validate Kimi adapter
+        shell: powershell
+        run: .\tests\adapters\kimi\Test-KimiAdapter.ps1
 
       - name: Run architecture contract tests
         shell: powershell

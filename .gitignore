@@ -27,6 +27,9 @@ packages/
 Thumbs.db
 .DS_Store
 
+# Local adapter configuration snapshots contain machine-specific absolute paths.
+adapters/workbuddy/skills/bim-bridge/mcp.generated.json
+
 # Local Autodesk acceptance artifacts. Put intentionally published fixtures
 # under tests/fixtures and force-add them after reviewing their contents.
 /*.adt

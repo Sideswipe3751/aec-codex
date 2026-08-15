@@ -1,0 +1,18 @@
+{
+  "name": "bim-bridge",
+  "description": "BIM Bridge adapters for Autodesk Revit and AutoCAD",
+  "owner": {
+    "name": "BIM Bridge"
+  },
+  "plugins": [
+    {
+      "name": "bim-bridge",
+      "description": "Connect WorkBuddy to the installed BIM Bridge Runtime for Revit and AutoCAD automation.",
+      "version": "2.0.0-alpha.1",
+      "source": "./adapters/workbuddy",
+      "category": "productivity",
+      "repository": "https://github.com/Sideswipe3751/bim-bridge",
+      "license": "Apache-2.0"
+    }
+  ]
+}

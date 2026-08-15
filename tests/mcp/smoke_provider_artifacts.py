@@ -12,6 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "runtime"))
 sys.path.insert(0, str(ROOT / "plugins" / "aec-codex" / "mcp-server"))
 
 from provider_gateway import ProviderManager  # noqa: E402

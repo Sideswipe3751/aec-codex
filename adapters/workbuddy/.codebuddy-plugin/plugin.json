@@ -1,0 +1,22 @@
+{
+  "name": "bim-bridge",
+  "version": "2.0.0-alpha.1",
+  "description": "通过 BIM Bridge 安全检查、建模和验证本机 Revit 与 AutoCAD。",
+  "description_en": "Inspect, model, and verify local Revit and AutoCAD sessions through BIM Bridge.",
+  "author": {
+    "name": "BIM Bridge"
+  },
+  "repository": "https://github.com/Sideswipe3751/bim-bridge",
+  "license": "Apache-2.0",
+  "keywords": [
+    "bim",
+    "revit",
+    "autocad",
+    "autodesk",
+    "mcp"
+  ],
+  "skills": [
+    "./skills/bim-bridge"
+  ],
+  "mcpServers": "./.mcp.json"
+}

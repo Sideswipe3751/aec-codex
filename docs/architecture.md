@@ -35,11 +35,16 @@ ownership is extracted; logical boundaries must be established and tested
 before large directory moves.
 
 **Current implementation milestone:** package and locally validate the
-agent-independent runtime behind the Codex adapter. The current scope installs
-only the Codex adapter; DeepSeek Harness and other agent packages remain
-deferred. Future agent packages may reuse the same read-only status, explicit
-consent, host bootstrap, and restart lifecycle, but must not fork the runtime or
-host binaries. This sequencing constraint does not make Codex the owner of
+agent-independent runtime behind the Codex adapter, plus experimental thin
+Tencent WorkBuddy and Kimi Code adapters that mount the same installed stdio MCP
+projection. Both adapters perform read-only Host preflight and delegate through
+a verified wrapper to the neutral Host launcher. WorkBuddy provides a repository
+Marketplace Plugin that bundles its Skill and relocatable MCP declaration; Kimi
+provides a native Kimi plugin manifest. Neither adapter installs or repairs the
+Host. DeepSeek Harness and other agent packages remain deferred. Future agent
+packages may reuse the same read-only status, explicit consent, host bootstrap,
+and restart lifecycle, but must not fork the runtime or host binaries. This
+sequencing constraint does not make Codex, WorkBuddy, or Kimi the owner of
 runtime behavior.
 
 As of this review, unattended live acceptance has passed on the certification
@@ -144,9 +149,9 @@ host-protocol types and do not reference an agent SDK.
 ## Target topology
 
 ```text
-Codex          DeepSeek Harness          CLI / tests          future agents
-  |                    |                     |                      |
-  +---------------- agent / protocol adapters --------------------+
+Codex       WorkBuddy       Kimi Code       DeepSeek Harness       CLI / tests
+  |             |               |                  |                   |
+  +------------------------- agent / protocol adapters -------------------+
                                |
                   Versioned BIM Bridge Contract
                                |
@@ -311,8 +316,10 @@ MCP launch configuration, and Codex-specific approval/tool annotations. Routing
 rules currently written in the skill move into runtime registry and policy data;
 the skill keeps only user guidance and adapter operation instructions.
 
-Every agent adapter uses the same session-bootstrap lifecycle. On its first
-activation in a relevant task, it runs the shared read-only host-status check.
+Every agent adapter uses the same session-bootstrap lifecycle and neutral Host
+status semantics. On its first activation in a relevant task, it runs a
+read-only probe against the shared install state and may add only its own
+platform-registration evidence.
 When installation, repair, or upgrade is needed, it presents the exact version,
 source, digest, locations, running-product constraints, and rollback behavior,
 then invokes the shared host installer only after affirmative consent in that
@@ -320,6 +327,27 @@ task. The adapter performs only its own platform registration; it must not fork
 the host installer, Autodesk payload, or installation state model. A skill can
 be selected implicitly after a relevant user request, but does not imply a
 background session-start hook on platforms that do not provide one.
+
+The experimental Tencent WorkBuddy adapter is a repository Marketplace Plugin
+that bundles a Skill, a relocatable stdio MCP declaration, and a verified
+launcher wrapper. It reads the neutral Host install state, validates the recorded
+launcher location and SHA-256, and delegates to the same MCP projection. The
+WorkBuddy Plugin manager owns adapter installation, registration, update, and
+removal; the adapter does not discover or mutate private WorkBuddy configuration
+files and does not install, repair, upgrade, or uninstall the Host.
+`CODEBUDDY.md` constrains WorkBuddy development to the adapter, its tests, and
+its documentation unless the user explicitly expands scope. This adapter is not
+certified until independent WorkBuddy end-to-end acceptance passes.
+
+The experimental Kimi Code adapter is a repository-root Kimi plugin plus a
+Kimi-format Skill, a project-MCP configuration fallback, and a verified launcher
+wrapper. The plugin manifest uses only relative paths within the managed plugin
+copy; the wrapper then validates the installed neutral Host launcher location
+and recorded SHA-256 before delegation. The adapter does not edit Kimi user or
+project configuration and does not install, repair, upgrade, or uninstall the
+Host. Kimi's plugin and MCP approval UI remains the single agent-facing approval
+surface, while BIM Bridge retains policy and exact-target enforcement. This
+adapter is not certified until independent Kimi end-to-end acceptance passes.
 
 DeepSeek Harness integration starts by mounting the same BIM Bridge MCP server, because
 DeepSeek's tool registry already accepts MCP-discovered tools. A later native
@@ -350,6 +378,8 @@ runtime/aec_runtime/            # agent/transport/Autodesk-free core
 adapters/
   mcp/                          # public MCP projection
   codex/                        # Codex plugin and skill
+  workbuddy/                    # experimental WorkBuddy Skill/MCP adapter
+  kimi/                         # experimental Kimi Plugin/Skill/MCP adapter
   deepseek-harness/             # optional thin Cordis adapter, later
   cli/                          # diagnostics and automation
 src/
@@ -764,6 +794,17 @@ runtime and matching certified Autodesk connectors, then registers the external
 `bim-bridge-local` MCP. Later AutoCAD variants remain deferred. The installer
 consumes certified artifacts and the version matrix; it does not decide
 compatibility itself.
+
+The public GitHub repository is a Codex Repo Marketplace, a WorkBuddy Plugin
+Marketplace, and a Kimi repository Plugin source. The same short user request
+containing its repository URL may authorize the active agent to install only its
+own lightweight adapter. It does not authorize another agent's adapter or native
+Host mutation. After the platform's required reload or restart boundary, the
+installed Skill performs the same bundled read-only status check and presents
+the exact Host plan before obtaining current-task consent. For ordinary remote
+users, an unpublished Host release must remain fail-closed; an agent must not
+substitute a cloned development source, source build, unpinned download, or
+standalone Skill installation for the signed release path.
 
 Install state hashes the launcher, MCP/runtime source, Autodesk adapters and
 manifests, and the critical private-Python bootstrap binaries. It does not hash

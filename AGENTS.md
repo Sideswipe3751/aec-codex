@@ -23,3 +23,16 @@ Treat that document as the repository's architecture contract:
 
 In the final report for a code change, state whether the architecture contract
 was preserved or updated.
+
+## Installation requests
+
+When a user asks an agent to install BIM Bridge from this GitHub repository,
+follow `INSTALL.md`. Treat the repository as a Codex Repo Marketplace and use
+the documented Marketplace and Plugin commands. Do not replace the public flow
+with a source build, a standalone Skill copy, an unpinned remote script, or an
+unpublished development Host.
+
+Adding the Marketplace and Plugin is separate from installing the native Host.
+After the required Codex restart and new-task boundary, let the installed Skill
+run its bundled read-only status check and obtain explicit current-task consent
+after presenting the exact Host mutation plan.

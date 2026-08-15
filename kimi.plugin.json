@@ -1,0 +1,31 @@
+{
+  "name": "bim-bridge",
+  "version": "2.0.0-alpha.1",
+  "description": "Connect Kimi Code to the local BIM Bridge Runtime for safe Revit and AutoCAD automation.",
+  "keywords": ["bim", "autocad", "revit", "autodesk", "mcp", "kimi"],
+  "author": "BIM Bridge",
+  "homepage": "https://github.com/Sideswipe3751/bim-bridge",
+  "license": "Apache-2.0",
+  "skills": "./adapters/kimi/skills/",
+  "mcpServers": {
+    "bim-bridge": {
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        "./skills/bim-bridge/scripts/Start-BimBridgeKimiMcp.ps1"
+      ],
+      "cwd": "./adapters/kimi",
+      "startupTimeoutMs": 30000
+    }
+  },
+  "interface": {
+    "displayName": "BIM Bridge",
+    "shortDescription": "Control Revit and AutoCAD through BIM Bridge",
+    "longDescription": "Checks the installed BIM Bridge Host, exposes its existing MCP tools to Kimi Code, and guides bounded Autodesk reads, previewed writes, readback, and visual verification.",
+    "developerName": "BIM Bridge",
+    "websiteURL": "https://github.com/Sideswipe3751/bim-bridge"
+  }
+}

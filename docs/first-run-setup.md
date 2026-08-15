@@ -7,7 +7,10 @@ add-ins or register the local MCP Host.
 
 ## User flow
 
-1. Install the lightweight BIM Bridge Codex plugin.
+1. Give Codex the canonical one-line request from the repository `README.md`.
+   Codex adds `Sideswipe3751/bim-bridge` as a Repo Marketplace and installs the
+   lightweight `bim-bridge` Plugin. The equivalent commands are documented in
+   `INSTALL.md`.
 2. Restart Codex and start a new task about BIM Bridge, Revit, or AutoCAD.
 3. On its first relevant activation, the Skill runs
    `Get-BimBridgeHostStatus.ps1`. This does not modify the computer.
@@ -24,6 +27,8 @@ add-ins or register the local MCP Host.
 Installing the Codex plugin is not approval for step 6. There is no idle
 task-start hook: bootstrap begins when Codex first invokes the Skill for a
 relevant request. If approval is declined, no installation command is run.
+For an ordinary remote user, an unpublished Host release must not be replaced
+with a cloned source build or development source root.
 
 ## Status values
 

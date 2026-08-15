@@ -14,6 +14,53 @@ verification, and correlated audit evidence.
 > BIM Bridge 2.0 is a development alpha. Use disposable drawings and models
 > for write testing, keep backups, and review the support matrix below.
 
+## One-sentence installation
+
+Copy the same sentence into Codex, Tencent WorkBuddy, or Kimi Code:
+
+> 请从 https://github.com/Sideswipe3751/bim-bridge 安装并配置 BIM Bridge。
+
+The current agent reads the repository installation contract and installs only
+its own thin adapter: Codex uses its Repo Marketplace, WorkBuddy uses its Plugin
+Marketplace, and Kimi uses its repository plugin. See
+[INSTALL.md](INSTALL.md) for the deterministic agent procedure and security
+boundaries. Installing an agent plugin is not consent to modify Autodesk or
+install the native Host.
+
+### Codex
+
+Codex adds the Repo Marketplace and installs the lightweight **BIM Bridge**
+plugin. The installed Skill performs the read-only Host preflight and presents
+the exact native plan before asking for separate consent.
+
+### Tencent WorkBuddy
+
+WorkBuddy installs the repository's `bim-bridge` Marketplace plugin, which
+contributes both the WorkBuddy Skill and the verified stdio MCP declaration:
+
+```text
+/plugin marketplace add https://github.com/Sideswipe3751/bim-bridge
+/plugin install bim-bridge@bim-bridge
+```
+
+Restart or reload WorkBuddy plugins and start a new task. This replaces the
+earlier manual Skill import and JSON-paste development flow.
+
+### Kimi Code
+
+Kimi Code uses the same one-sentence request and its repository plugin entry:
+
+```text
+/plugins install https://github.com/Sideswipe3751/bim-bridge/tree/main
+/reload
+```
+
+Start a new session and ask Kimi to check BIM Bridge. The repository-root Kimi
+plugin contributes the Skill and the verified stdio MCP launcher. Plugin
+installation still does not authorize native Host installation or repair; the
+experimental adapter reports an unavailable Host and stops. See
+[the Kimi adapter guide](docs/kimi-adapter.md).
+
 ## Capabilities
 
 - Discovers local Revit and AutoCAD sessions without exposing a network port
@@ -47,6 +94,10 @@ representative set of read/write operations pass inside that product.
 - `runtime/aec_runtime`: BIM Bridge Runtime host discovery, provider
   supervision, capability routing, policy, verification, and audit.
 - `plugins/bim-bridge`: lightweight Codex Skill and approved Host bootstrap.
+- `adapters/workbuddy`: experimental Tencent WorkBuddy Marketplace Plugin,
+  Skill, and MCP adapter over the same installed neutral Host.
+- `adapters/kimi`: experimental Kimi Code Plugin, Skill, and MCP adapter over
+  that same Host.
 - `plugins/aec-codex/mcp-server`: version-1 compatibility MCP projection over
   the agent-independent runtime; packaged by the Host installer, not owned by
   the new Codex plugin.
@@ -69,18 +120,25 @@ request with a per-process bearer token. See [the architecture notes](docs/archi
 Prerequisites:
 
 - Windows x64
-- Codex desktop app or CLI
+- Codex, Tencent WorkBuddy, or Kimi Code for the matching agent adapter
 - AutoCAD 2024 and/or one of the certified Revit releases listed above
 
-BIM Bridge 2.0 is not yet a signed public release. For local development, clone
-this repository and add its root as a local marketplace:
+BIM Bridge 2.0 is not yet a signed public Host release. The lightweight agent
+plugins can be installed independently from this repository. For Codex:
 
 ```powershell
-codex plugin marketplace add 'C:\path\to\bim-bridge'
+codex plugin marketplace add Sideswipe3751/bim-bridge --ref main
+codex plugin add bim-bridge@bim-bridge
 ```
 
-Restart Codex, install **BIM Bridge** from the local marketplace, and start a
-new task with the setup starter prompt.
+Restart Codex and start a new task about BIM Bridge. For ordinary remote users,
+Codex must not build or install the Host from a cloned development source. Host
+setup remains fail-closed until `release-manifest.json` points to a published,
+signed release archive with its exact SHA-256.
+
+Repository contributors may instead clone the repository and add its root as a
+local marketplace. That development-only path is documented in
+[INSTALL.md](INSTALL.md) and must not be presented as the public install path.
 
 The first task performs a read-only preflight. It reports the exact release,
 SHA-256, prerequisites, running Autodesk applications, and current-user paths
@@ -139,6 +197,8 @@ Run the dependency-free MCP tests and shared bridge tests:
 python -m unittest discover -s tests\mcp -p "test_*.py"
 dotnet run --project tests\BimBridge.Host.Tests -c Release -f net10.0
 & .\tests\architecture\Test-RevitVersionArchitecture.ps1
+& .\tests\adapters\workbuddy\Test-WorkBuddyAdapter.ps1
+& .\tests\adapters\kimi\Test-KimiAdapter.ps1
 ```
 
 When verified provider artifacts are available, also run:
