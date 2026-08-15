@@ -154,6 +154,9 @@ try {
         $ErrorActionPreference = 'Continue'
         [void](& powershell.exe -NoLogo -NoProfile -NonInteractive -File $launcherScript -StateRoot $temporaryRoot 2> $outsideStderrPath)
         $outsideExitCode = $LASTEXITCODE
+        # GitHub Actions dot-sources this test file. Do not leave the expected
+        # negative child exit code as the surrounding step's final status.
+        $global:LASTEXITCODE = 0
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
     }
