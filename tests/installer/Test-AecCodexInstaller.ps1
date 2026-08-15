@@ -70,10 +70,10 @@ try {
         $serverText = Get-Content -LiteralPath (Join-Path $repoRoot 'plugins\aec-codex\mcp-server\aec_mcp_server.py') -Raw
         Assert ($serverText.Contains('SERVER_VERSION = "1.1.0-rc.3"')) 'MCP host version differs from plugin version.'
         $versionedFiles = @(
-            'plugins\aec-codex\mcp-server\provider_gateway.py',
-            'src\Aec.Codex.Bridge\ConnectorContracts.cs',
-            'src\Aec.Codex.AutoCAD2024\AutoCADConnectorExecutor.cs',
-            'src\Aec.Codex.Revit2024\RevitConnectorExecutor.cs'
+            'runtime\aec_runtime\providers.py',
+            'src\BimBridge.Host\ConnectorContracts.cs',
+            'src\BimBridge.AutoCAD2024\AutoCADConnectorExecutor.cs',
+            'src\BimBridge.Revit\RevitConnectorExecutor.cs'
         )
         foreach ($relativePath in $versionedFiles) {
             $text = Get-Content -LiteralPath (Join-Path $repoRoot $relativePath) -Raw

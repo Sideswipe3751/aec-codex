@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>BIM Bridge</Name>
+    <Assembly>{{ASSEMBLY_PATH}}</Assembly>
+    <AddInId>66E6F0BE-A5B5-49D8-A543-EBF53885A58D</AddInId>
+    <FullClassName>BimBridge.Revit.BimBridgeApplication</FullClassName>
+    <VendorId>BMBR</VendorId>
+    <VendorDescription>BIM Bridge local Revit connector</VendorDescription>
+  </AddIn>
+{{MANIFEST_SETTINGS}}
+</RevitAddIns>

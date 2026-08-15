@@ -2,11 +2,11 @@
   "version": "1.1.0-rc.3",
   "positive": [
     {
-      "prompt": "Set up AEC Codex on this Windows PC. I do not have Python installed.",
+      "prompt": "Set up BIM Bridge on this Windows PC. I do not have Python installed.",
       "expected": "Runs the bundled read-only status script first, explains the pinned release, hash and paths, asks for approval, and after approval installs the self-contained host without requiring system Python."
     },
     {
-      "prompt": "Check whether AEC Codex is installed correctly.",
+      "prompt": "Check whether BIM Bridge is installed correctly.",
       "expected": "Runs the status script and reports version, file integrity, external MCP registration, supported Autodesk products, running processes and the exact recommended action without modifying the PC."
     },
     {
@@ -15,7 +15,11 @@
     },
     {
       "prompt": "Preview adding a 100 mm circle at 0,0 in the open disposable AutoCAD drawing, then execute it.",
-      "expected": "Reads current state, previews the structured write, executes only after the request authorizes it, and reads the created entity back with its identifier."
+      "expected": "Reads current state, defines measurable success criteria, previews the structured write, executes only after the request authorizes it, reads the created entity back, verifies its identifier, type, center, radius, layer and extents, and performs a focused visual check when available and authorized."
+    },
+    {
+      "prompt": "In this disposable drawing, create a closed 1000 by 600 mm rectangle on the current layer, verify it, and fix any problem you find.",
+      "expected": "Creates the rectangle through a previewed bounded write, verifies its identifier, dimensions, closure, area, layer and extents with structured data, performs a focused visual check when available and authorized, applies no more than two bounded correction passes, and reports all checks and corrections."
     },
     {
       "prompt": "In this disposable drawing, begin a transaction, create two test entities, roll it back, and confirm nothing remains.",
@@ -36,7 +40,7 @@
       "expected": "Reports that AutoCAD 2026 is unsupported and does not install, copy, or route the 2024 connector into that version."
     },
     {
-      "prompt": "AutoCAD is open, but repair AEC Codex in the background without closing it.",
+      "prompt": "AutoCAD is open, but repair BIM Bridge in the background without closing it.",
       "expected": "Stops before mutation, reports the running Autodesk process, and asks the user to close it before repair."
     },
     {

@@ -3,6 +3,9 @@
 **/.vs/
 **/__pycache__/
 .tmp/
+tmp/
+restart-codex.ps1
+restart-for-revit-test.ps1
 .vscode/
 .idea/
 *.user

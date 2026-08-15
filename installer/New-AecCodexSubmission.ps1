@@ -46,7 +46,7 @@ try {
     Copy-SubmissionPath (Join-Path $pluginRoot 'scripts\Install-AecCodexHost.ps1') (Join-Path $stageSkillRoot 'scripts\Install-AecCodexHost.ps1')
     Copy-SubmissionPath (Join-Path $pluginRoot 'release-manifest.json') (Join-Path $stageSkillRoot 'release-manifest.json')
     Copy-SubmissionPath (Join-Path $SourceRoot 'LICENSE') (Join-Path $stageRoot 'LICENSE')
-    Copy-SubmissionPath (Join-Path $SourceRoot 'branding\official\aec-codex-logo-transparent.png') (Join-Path $stageRoot 'assets\aec-codex-logo-transparent.png')
+    Copy-SubmissionPath (Join-Path $SourceRoot 'branding\official\bim-bridge-logo-transparent.png') (Join-Path $stageRoot 'assets\aec-codex-logo-transparent.png')
 
     $publicPluginManifest = [ordered]@{
         name = 'aec-codex'

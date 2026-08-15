@@ -93,14 +93,14 @@ class McpServerTests(unittest.TestCase):
             encoding="utf-8",
         )
         os.environ["AEC_CODEX_PROVIDER_CONFIG"] = str(provider_config)
-        MCP.PROVIDERS.reload(force=True)
+        MCP.RUNTIME.providers.reload(force=True)
         self.http = ThreadingHTTPServer(("127.0.0.1", 0), FakeConnector)
         self.thread = threading.Thread(target=self.http.serve_forever, daemon=True)
         self.thread.start()
         self.write_descriptor("revit-one", self.http.server_port)
 
     def tearDown(self):
-        MCP.PROVIDERS.close()
+        MCP.RUNTIME.providers.close()
         self.http.shutdown()
         self.http.server_close()
         self.thread.join(timeout=2)
@@ -125,13 +125,20 @@ class McpServerTests(unittest.TestCase):
             "token": FakeConnector.token,
             "startedAtUtc": "2026-08-10T00:00:00Z",
             "document": {"id": "doc-1", "title": "Test", "path": None},
-            "capabilities": ["document.info", "selection.read", "code.read", "code.write"],
+            "capabilities": [
+                "document.info",
+                "selection.read",
+                "view.capture",
+                "code.read",
+                "code.write",
+            ],
         }
         Path(self.temp.name, instance_id + ".json").write_text(json.dumps(value), encoding="utf-8")
 
     def test_tool_annotations_separate_read_and_write(self):
         tools = {item["name"]: item for item in MCP.TOOLS}
-        self.assertTrue(tools["aec_execute_read"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["aec_execute_read"]["annotations"]["readOnlyHint"])
+        self.assertTrue(tools["aec_execute_read"]["annotations"]["destructiveHint"])
         self.assertFalse(tools["aec_execute_write"]["annotations"]["readOnlyHint"])
         self.assertTrue(tools["aec_execute_write"]["annotations"]["destructiveHint"])
 
@@ -279,6 +286,35 @@ class McpServerTests(unittest.TestCase):
                 "aec_get_provider_tool_schema",
                 {"provider": "fake-provider", "toolName": "send_code_to_revit"},
             )
+
+    def test_builtin_revit_capture_is_discoverable_and_directly_callable(self):
+        searched = MCP.invoke_tool(
+            "aec_search_provider_tools", {"query": "screenshot", "provider": "revit.connector.v1"}
+        )
+        self.assertEqual("capture_view", searched["tools"][0]["name"])
+        schema = MCP.invoke_tool(
+            "aec_get_provider_tool_schema",
+            {"provider": "revit.connector.v1", "toolName": "capture_view"},
+        )
+        self.assertEqual("read", schema["access"])
+        result = MCP.invoke_tool(
+            "aec_call_provider_read",
+            {
+                "provider": "revit.connector.v1",
+                "toolName": "capture_view",
+                "arguments": {
+                    "instanceId": "revit-one",
+                    "viewName": "{3D}",
+                    "fileStem": "qa",
+                    "pixelSize": 1400,
+                    "dpi": 150,
+                },
+            },
+        )
+        self.assertEqual("succeeded", result["status"])
+        self.assertEqual("view.capture", FakeConnector.last_execute["operation"])
+        self.assertEqual("{3D}", FakeConnector.last_execute["viewCapture"]["viewName"])
+        self.assertNotIn("code", FakeConnector.last_execute)
 
 
 if __name__ == "__main__":

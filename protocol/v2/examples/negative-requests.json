@@ -1,0 +1,27 @@
+[
+  {
+    "name": "wrong_contract_version",
+    "patch": { "contractVersion": 1 },
+    "error": "contract_version"
+  },
+  {
+    "name": "write_without_exact_instance",
+    "patch": { "intent": "write", "removeTargetFields": ["instanceId", "processId", "document"] },
+    "error": "exact_write_target"
+  },
+  {
+    "name": "unauthenticated_session",
+    "patch": { "authenticated": false },
+    "error": "adapter_authentication"
+  },
+  {
+    "name": "unbounded_timeout",
+    "patch": { "timeoutSeconds": 1801 },
+    "error": "timeout_range"
+  },
+  {
+    "name": "write_capability_declared_read",
+    "patch": { "intent": "read", "capabilityId": "revit.code.write" },
+    "error": "capability_intent"
+  }
+]

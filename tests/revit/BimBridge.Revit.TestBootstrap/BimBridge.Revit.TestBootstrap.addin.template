@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>BIM Bridge Live Test Bootstrap</Name>
+    <Assembly>{{ASSEMBLY_PATH}}</Assembly>
+    <AddInId>D9193BA0-8221-4DDF-A288-D85639217A18</AddInId>
+    <FullClassName>BimBridge.Revit.LiveTest.LiveTestBootstrapApplication</FullClassName>
+    <VendorId>BMBR</VendorId>
+    <VendorDescription>BIM Bridge disposable Revit certification bootstrap</VendorDescription>
+  </AddIn>
+{{MANIFEST_SETTINGS}}
+</RevitAddIns>

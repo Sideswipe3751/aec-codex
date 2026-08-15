@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/Sideswipe3751/aec-codex/security/advisories/new
+    url: https://github.com/Sideswipe3751/bim-bridge/security/advisories/new
     about: Report security issues privately. Do not open a public issue.

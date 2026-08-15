@@ -3,5 +3,14 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <Version>2.0.0-alpha.1</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <Product>BIM Bridge</Product>
+    <Company>BIM Bridge</Company>
+    <!-- Matrix builds isolate obj roots by Revit release. Always exclude the
+         conventional obj/bin trees too, so stale generated sources can never
+         become implicit Compile items when BaseIntermediateOutputPath moves. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

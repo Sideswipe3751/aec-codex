@@ -1,28 +1,31 @@
 {
-  "name": "AEC Codex",
-  "version": "1.1.0-rc.3",
+  "name": "BIM Bridge",
+  "version": "2.0.0-alpha.1",
   "submissionType": "skills-only",
   "category": "Productivity",
-  "shortDescription": "Set up and safely control local AutoCAD and Revit sessions.",
-  "longDescription": "AEC Codex connects Codex to AutoCAD 2024 and Revit 2024 on the same Windows PC. It performs a read-only setup check, installs a checksum-pinned per-user host only after explicit approval, discovers structured CAD/BIM tools, previews writes, and uses native transaction or undo behavior for bounded changes.",
-  "websiteURL": "https://github.com/Sideswipe3751/aec-codex",
-  "supportURL": "https://github.com/Sideswipe3751/aec-codex/issues",
-  "privacyPolicyURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/privacy.md",
-  "termsOfServiceURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/terms.md",
+  "shortDescription": "Control AutoCAD and Revit",
+  "longDescription": "BIM Bridge connects Codex to AutoCAD and Revit on the same Windows PC through an agent-independent runtime. It performs a read-only setup check, installs a per-user host only after explicit approval, discovers structured CAD/BIM tools, previews writes, uses native transaction or undo behavior for bounded changes, and verifies completed work with structured readback and focused visual checks when appropriate.",
+  "websiteURL": "https://github.com/Sideswipe3751/bim-bridge",
+  "supportURL": "https://github.com/Sideswipe3751/bim-bridge/issues",
+  "privacyPolicyURL": "https://github.com/Sideswipe3751/bim-bridge/blob/main/docs/privacy.md",
+  "termsOfServiceURL": "https://github.com/Sideswipe3751/bim-bridge/blob/main/docs/terms.md",
   "license": "Apache-2.0",
   "supportedPlatform": "Windows x64",
   "supportedProducts": [
     "AutoCAD 2024",
-    "Revit 2024"
+    "Revit 2024",
+    "Revit 2025",
+    "Revit 2026",
+    "Revit 2027"
   ],
   "starterPrompts": [
-    "Set up AEC Codex on this PC and verify the local Autodesk connectors.",
+    "Set up BIM Bridge on this PC and verify the local Autodesk connectors.",
     "Inspect the active AutoCAD drawing without changing it.",
-    "Preview a safe Revit or AutoCAD change before executing it."
+    "Create a simple Revit or AutoCAD element, then verify it with structured data and a focused visual check."
   ],
   "brandColor": "#1257E5",
   "logoStatus": "owner-selected-transparent",
-  "logoPath": "branding/official/aec-codex-logo-transparent.png",
+  "logoPath": "branding/official/bim-bridge-logo-transparent.png",
   "publisherIdentity": "CHU HE",
   "manualAttestationsRequired": true
 }

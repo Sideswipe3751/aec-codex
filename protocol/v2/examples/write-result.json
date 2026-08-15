@@ -1,0 +1,54 @@
+{
+  "kind": "execution_result",
+  "contractVersion": 2,
+  "correlationId": "01JBIMBRIDGE00000000000002",
+  "status": "succeeded",
+  "selected": {
+    "capabilityId": "autocad.entity.create_point",
+    "providerId": "autocad.native"
+  },
+  "hostEvidence": {
+    "application": "autocad",
+    "release": "2024",
+    "apiVariant": "24.3.0.0",
+    "runtimeVariant": "net48",
+    "instanceId": "autocad-2024-24372",
+    "processId": 24372,
+    "document": {
+      "id": "path:c:/tests/drawing.dwg",
+      "title": "drawing.dwg",
+      "path": "C:/tests/drawing.dwg"
+    }
+  },
+  "transaction": {
+    "status": "committed",
+    "rolledBack": false,
+    "documentLock": "acquired"
+  },
+  "changes": {
+    "created": ["handle:28A"],
+    "modified": [],
+    "deleted": []
+  },
+  "output": {
+    "handle": "28A"
+  },
+  "verification": {
+    "strength": "readback",
+    "status": "passed",
+    "checks": [{ "id": "marker_exists", "passed": true }],
+    "issues": [],
+    "evidence": { "count": 1 }
+  },
+  "warnings": [],
+  "errors": [],
+  "timings": {
+    "startedAtUtc": "2026-08-14T04:05:00Z",
+    "endedAtUtc": "2026-08-14T04:05:01Z",
+    "elapsedMilliseconds": 1000
+  },
+  "audit": {
+    "auditId": "01JBIMBRIDGEAUDIT000000001",
+    "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

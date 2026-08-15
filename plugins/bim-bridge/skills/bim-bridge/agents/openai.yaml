@@ -1,0 +1,6 @@
+interface:
+  display_name: "BIM Bridge"
+  short_description: "Bootstrap and operate BIM Bridge"
+  default_prompt: "Use $bim-bridge to bootstrap BIM Bridge for this task, install or repair its local host after approval when needed, then safely inspect or modify Revit or AutoCAD content."
+policy:
+  allow_implicit_invocation: true

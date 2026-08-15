@@ -1,0 +1,30 @@
+{
+  "name": "bim-bridge",
+  "version": "2.0.0-alpha.1",
+  "description": "Bootstrap Codex into the local BIM Bridge Runtime for safe Revit and AutoCAD automation.",
+  "author": {
+    "name": "BIM Bridge"
+  },
+  "homepage": "https://github.com/Sideswipe3751/bim-bridge",
+  "repository": "https://github.com/Sideswipe3751/bim-bridge",
+  "license": "Apache-2.0",
+  "keywords": ["bim", "autocad", "revit", "autodesk", "mcp", "codex"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "BIM Bridge",
+    "shortDescription": "Bootstrap and control BIM software",
+    "longDescription": "Checks the local BIM Bridge host at the start of relevant tasks, installs or repairs it after explicit approval, and safely controls supported Revit and AutoCAD sessions through the shared runtime.",
+    "developerName": "BIM Bridge",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/Sideswipe3751/bim-bridge",
+    "privacyPolicyURL": "https://github.com/Sideswipe3751/bim-bridge/blob/main/docs/privacy.md",
+    "termsOfServiceURL": "https://github.com/Sideswipe3751/bim-bridge/blob/main/docs/terms.md",
+    "brandColor": "#1257E5",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Set up BIM Bridge on this Windows PC and verify its local Autodesk connectors.",
+      "Inspect the active Revit or AutoCAD document without changing it.",
+      "Create or update Autodesk content, then verify it with structured readback."
+    ]
+  }
+}

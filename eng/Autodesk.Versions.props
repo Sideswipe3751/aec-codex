@@ -1,0 +1,87 @@
+<Project>
+  <!-- This is the single source of truth for Autodesk adapter builds. -->
+  <Choose>
+    <When Condition="'$(RevitVersion)' == '2024'">
+      <PropertyGroup>
+        <ReleaseYear>2024</ReleaseYear>
+        <RevitAssemblyName>BimBridge.Revit2024</RevitAssemblyName>
+        <RevitManifestName>BimBridge.Revit2024.addin</RevitManifestName>
+        <RevitTargetFramework>net48</RevitTargetFramework>
+        <RevitRuntimeFamily>netfx</RevitRuntimeFamily>
+        <RevitRuntimeResolution>fixed</RevitRuntimeResolution>
+        <RevitSupportedTargetFrameworks>net48</RevitSupportedTargetFrameworks>
+        <RevitDynamicCompiler>codedom</RevitDynamicCompiler>
+        <RevitUseRevitContext>false</RevitUseRevitContext>
+        <RevitProviderAvailable>true</RevitProviderAvailable>
+        <RevitSupportStatus>implemented</RevitSupportStatus>
+        <RevitCertificationStatus>certified</RevitCertificationStatus>
+        <RevitInstallSubdirectory>Autodesk\Revit 2024</RevitInstallSubdirectory>
+        <RevitDefaultTemplateSubdirectory>Autodesk\RVT 2024\Templates\Default_M_ENU.rte</RevitDefaultTemplateSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(RevitVersion)' == '2025'">
+      <PropertyGroup>
+        <ReleaseYear>2025</ReleaseYear>
+        <RevitAssemblyName>BimBridge.Revit2025</RevitAssemblyName>
+        <RevitManifestName>BimBridge.Revit2025.addin</RevitManifestName>
+        <RevitTargetFramework>net8.0-windows</RevitTargetFramework>
+        <RevitRuntimeFamily>modern</RevitRuntimeFamily>
+        <RevitRuntimeResolution>installed-api-runtime</RevitRuntimeResolution>
+        <RevitSupportedTargetFrameworks>net8.0-windows;net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
+        <RevitUseRevitContext>true</RevitUseRevitContext>
+        <RevitProviderAvailable>false</RevitProviderAvailable>
+        <RevitSupportStatus>implemented</RevitSupportStatus>
+        <RevitCertificationStatus>certified</RevitCertificationStatus>
+        <RevitInstallSubdirectory>Autodesk\Revit 2025</RevitInstallSubdirectory>
+        <RevitDefaultTemplateSubdirectory>Autodesk\RVT 2025\Templates\Default_M_ENU.rte</RevitDefaultTemplateSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(RevitVersion)' == '2026'">
+      <PropertyGroup>
+        <ReleaseYear>2026</ReleaseYear>
+        <RevitAssemblyName>BimBridge.Revit2026</RevitAssemblyName>
+        <RevitManifestName>BimBridge.Revit2026.addin</RevitManifestName>
+        <RevitTargetFramework>net8.0-windows</RevitTargetFramework>
+        <RevitRuntimeFamily>modern</RevitRuntimeFamily>
+        <RevitRuntimeResolution>installed-api-runtime</RevitRuntimeResolution>
+        <RevitSupportedTargetFrameworks>net8.0-windows;net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
+        <RevitUseRevitContext>false</RevitUseRevitContext>
+        <RevitProviderAvailable>false</RevitProviderAvailable>
+        <RevitSupportStatus>implemented</RevitSupportStatus>
+        <RevitCertificationStatus>certified</RevitCertificationStatus>
+        <RevitInstallSubdirectory>Autodesk\Revit 2026</RevitInstallSubdirectory>
+        <RevitDefaultTemplateSubdirectory>Autodesk\RVT 2026\Templates\Default_M_ENU.rte</RevitDefaultTemplateSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(RevitVersion)' == '2027'">
+      <PropertyGroup>
+        <ReleaseYear>2027</ReleaseYear>
+        <RevitAssemblyName>BimBridge.Revit2027</RevitAssemblyName>
+        <RevitManifestName>BimBridge.Revit2027.addin</RevitManifestName>
+        <RevitTargetFramework>net10.0-windows</RevitTargetFramework>
+        <RevitRuntimeFamily>modern</RevitRuntimeFamily>
+        <RevitRuntimeResolution>fixed</RevitRuntimeResolution>
+        <RevitSupportedTargetFrameworks>net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
+        <RevitUseRevitContext>false</RevitUseRevitContext>
+        <RevitProviderAvailable>false</RevitProviderAvailable>
+        <RevitSupportStatus>implemented</RevitSupportStatus>
+        <RevitCertificationStatus>certified</RevitCertificationStatus>
+        <RevitInstallSubdirectory>Autodesk\Revit 2027</RevitInstallSubdirectory>
+        <RevitDefaultTemplateSubdirectory>Autodesk\RVT 2027\Templates\Default_M_ENU.rte</RevitDefaultTemplateSubdirectory>
+      </PropertyGroup>
+    </When>
+  </Choose>
+  <ItemGroup>
+    <AutoCADRelease Include="2024">
+      <AssemblyName>BimBridge.AutoCAD2024</AssemblyName>
+      <TargetFramework>net48</TargetFramework>
+      <RuntimeFamily>netfx</RuntimeFamily>
+      <SupportStatus>implemented</SupportStatus>
+      <CertificationStatus>certified</CertificationStatus>
+      <InstallSubdirectory>Autodesk\AutoCAD 2024</InstallSubdirectory>
+    </AutoCADRelease>
+  </ItemGroup>
+</Project>

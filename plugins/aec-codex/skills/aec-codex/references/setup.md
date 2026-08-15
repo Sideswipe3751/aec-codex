@@ -1,4 +1,4 @@
-# AEC Codex setup workflow
+# BIM Bridge setup workflow
 
 Use the scripts shipped inside the installed plugin. Never pipe a remote script
 to `Invoke-Expression`, never replace the pinned release URL with `latest`, and
@@ -6,9 +6,10 @@ never skip the release SHA-256 check.
 
 ## Read-only preflight
 
-Run `scripts/Get-AecCodexHostStatus.ps1` from the plugin root. Summarize:
+Resolve the plugin root two directories above this skill directory, then run
+`../../scripts/Get-AecCodexHostStatus.ps1` relative to `SKILL.md`. Summarize:
 
-- AEC Codex target and installed versions;
+- BIM Bridge target and installed versions;
 - Windows architecture and whether the bundled private runtime is intact;
 - whether the `aec-codex-local` external MCP registration is present;
 - detected AutoCAD and Revit versions;
@@ -24,7 +25,7 @@ attempting an installation.
 
 Before an install, repair, upgrade, or uninstall, show the user:
 
-- the exact AEC Codex version and pinned GitHub release URL;
+- the exact BIM Bridge version and pinned GitHub release URL;
 - the expected SHA-256, or that the release has not been published yet;
 - every current-user location that will be changed;
 - that AutoCAD and Revit must be closed;
@@ -38,9 +39,9 @@ workflow does not weaken them.
 
 ## Install, repair, and upgrade
 
-After consent, run `scripts/Install-AecCodexHost.ps1 -UserApproved` from the
-plugin root. Add `-Action Repair` only for repair. Upgrade uses the normal
-`Install` action when the status is `needs_upgrade`.
+After consent, run `../../scripts/Install-AecCodexHost.ps1 -UserApproved`
+relative to `SKILL.md`. Add `-Action Repair` only for repair. Upgrade uses the
+normal `Install` action when the status is `needs_upgrade`.
 
 The script downloads one exact release, verifies SHA-256, and invokes the
 packaged installer in `HostOnly` mode. It must not create a personal plugin or
@@ -54,8 +55,8 @@ script and proceed only when it reports `healthy`.
 ## Uninstall
 
 After consent, run
-`scripts/Install-AecCodexHost.ps1 -Action Uninstall -UserApproved`. Host-only
-uninstall removes AEC Codex connectors, providers, local MCP host files, the
+`../../scripts/Install-AecCodexHost.ps1 -Action Uninstall -UserApproved`.
+Host-only uninstall removes BIM Bridge connectors, providers, local MCP host files, the
 `aec-codex-local` registration, and installation state. It preserves the
 public Codex plugin itself.
 

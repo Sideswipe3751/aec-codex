@@ -28,31 +28,37 @@ jobs:
       - name: Validate plugin manifests
         shell: pwsh
         run: |
-          python -m json.tool plugins/aec-codex/.codex-plugin/plugin.json > $null
-          python -m json.tool plugins/aec-codex/.mcp.json > $null
-          python -m json.tool plugins/aec-codex/release-manifest.json > $null
-          python -m json.tool plugins/aec-codex/providers/providers.lock.json > $null
+          python -m json.tool plugins/bim-bridge/.codex-plugin/plugin.json > $null
+          python -m json.tool plugins/bim-bridge/release-manifest.json > $null
+          python -m json.tool protocol/v1/baseline.json > $null
+          python -m json.tool protocol/v2/aec-contract.schema.json > $null
           python -m json.tool .agents/plugins/marketplace.json > $null
-          python -m json.tool submission/listing.json > $null
-          python -m json.tool submission/test-cases.json > $null
 
       - name: Run installer contract tests
         shell: powershell
-        run: .\tests\installer\Test-AecCodexInstaller.ps1
+        run: .\tests\installer\Test-BimBridgeInstaller.ps1
 
-      - name: Build public Skills-only submission bundle
+      - name: Validate BIM Bridge listing logo
         shell: powershell
-        run: .\installer\New-AecCodexSubmission.ps1 -Version '1.1.0-rc.3' -AllowUnpublished
+        run: .\tests\branding\Test-BimBridgeLogo.ps1
 
-      - name: Validate public listing logo
+      - name: Run architecture contract tests
         shell: powershell
-        run: .\tests\branding\Test-AecCodexLogo.ps1
+        run: |
+          .\tests\architecture\Test-RevitVersionArchitecture.ps1
+          .\tests\architecture\Test-RevitRuntimeResolution.ps1
+
+      - name: Run runtime, protocol, and adapter tests
+        run: |
+          python -m unittest discover -s tests/runtime -p "test_*.py"
+          python -m unittest discover -s tests/protocol -p "test_*.py"
+          python -m unittest discover -s tests/adapters -p "test_*.py"
 
       - name: Run MCP tests
         run: python -m unittest discover -s tests/mcp -p "test_*.py"
 
       - name: Run shared bridge tests
-        run: dotnet run --project tests/Aec.Codex.Bridge.Tests -c Release -f net10.0
+        run: dotnet run --project tests/BimBridge.Host.Tests -c Release -f net10.0
 
       - name: Verify repository does not track Autodesk binaries
         shell: pwsh

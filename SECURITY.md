@@ -13,7 +13,7 @@ discussion, pull request, screenshot, or log attachment.
 
 Include:
 
-- the affected AEC Codex version and commit;
+- the affected BIM Bridge version and commit;
 - the affected Autodesk and Codex versions;
 - reproduction steps using non-sensitive test data;
 - impact and expected security boundary;
@@ -24,7 +24,7 @@ contents, and unrelated application logs before submitting evidence.
 
 ## Security boundaries
 
-AEC Codex connectors are designed for loopback-only access and authenticate
+BIM Bridge connectors are designed for loopback-only access and authenticate
 requests with per-process bearer tokens stored in current-user descriptor
 files. Writes remain subject to Codex approval and Autodesk transaction rules.
 Report any bypass of these boundaries privately.

@@ -1,10 +1,11 @@
 # Public Plugins Directory submission
 
-This directory contains the materials for submitting AEC Codex as a public
+This directory contains the materials for submitting BIM Bridge as a public
 Skills-only plugin. The public skill performs a read-only first-run check,
 explains the exact native changes, asks for explicit approval, downloads one
 version-pinned host release, verifies SHA-256, and invokes the transactional
-current-user installer. The installed host registers `aec-codex-local` as an
+current-user installer. The installed host currently registers the legacy
+`aec-codex-local` identifier as an
 external local MCP server.
 
 The public submission intentionally contains no executable connector binaries,
@@ -20,7 +21,7 @@ Build the upload bundle with:
 
 Before uploading, complete the following owner-controlled actions:
 
-1. Use `branding/official/aec-codex-logo-transparent.png` as the owner-selected
+1. Use `branding/official/bim-bridge-logo-transparent.png` as the owner-selected
    listing logo. Its four exterior corners are transparent; the white source
    border must never be uploaded.
 2. Publish the exact rc.3 host ZIP and set its final SHA-256 and `published`

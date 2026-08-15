@@ -1,14 +1,14 @@
 {
-  "name": "aec-codex",
+  "name": "bim-bridge",
   "interface": {
-    "displayName": "AEC Codex"
+    "displayName": "BIM Bridge"
   },
   "plugins": [
     {
-      "name": "aec-codex",
+      "name": "bim-bridge",
       "source": {
         "source": "local",
-        "path": "./plugins/aec-codex"
+        "path": "./plugins/bim-bridge"
       },
       "policy": {
         "installation": "AVAILABLE",

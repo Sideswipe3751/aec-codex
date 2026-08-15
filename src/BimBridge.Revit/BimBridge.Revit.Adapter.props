@@ -1,0 +1,47 @@
+<Project>
+  <Import Project="../../eng/Autodesk.Versions.props" />
+  <PropertyGroup>
+    <TargetFramework Condition="'$(RevitTargetFramework)' != ''">$(RevitTargetFramework)</TargetFramework>
+    <TargetFramework Condition="'$(RevitTargetFramework)' == ''">netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>BimBridge.Revit</RootNamespace>
+    <AssemblyName>$(RevitAssemblyName)</AssemblyName>
+    <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit $(RevitVersion)</RevitInstallDir>
+    <OutputPath Condition="'$(OutputPath)' == ''">bin\$(Configuration)\$(RevitVersion)\</OutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="RevitVersion" Value="$(RevitVersion)" />
+    <AssemblyMetadata Include="RevitRuntimeFamily" Value="$(RevitRuntimeFamily)" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\BimBridge.Host\BimBridge.Host.csproj" />
+    <PackageReference Condition="'$(RevitRuntimeFamily)' == 'netfx'" Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Condition="'$(RevitRuntimeFamily)' == 'modern'" Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RevitRuntimeFamily)' == 'netfx'">
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RevitRuntimeFamily)' == 'modern'">
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitInstallDir)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitInstallDir)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Compile Include="$(MSBuildThisFileDirectory)*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Runtime\NetFramework\RuntimeCodeCompiler.cs" Condition="'$(RevitRuntimeFamily)' == 'netfx'" />
+    <Compile Include="$(MSBuildThisFileDirectory)Runtime\Modern\RuntimeCodeCompiler.cs" Condition="'$(RevitRuntimeFamily)' == 'modern'" />
+  </ItemGroup>
+  <Target Name="ValidateRevitAdapterConfiguration" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(RevitVersion)' == ''" Text="RevitVersion is required. Use eng/Build-RevitAdapters.ps1." />
+    <Error Condition="'$(ReleaseYear)' == ''" Text="RevitVersion '$(RevitVersion)' is not declared in eng/Autodesk.Versions.props." />
+    <Error Condition="'$(RevitRuntimeFamily)' == ''" Text="RevitVersion '$(RevitVersion)' has no runtime family." />
+    <Error Condition="!Exists('$(RevitInstallDir)\RevitAPI.dll')" Text="Revit $(RevitVersion) API was not found at $(RevitInstallDir). Set RevitInstallDir." />
+  </Target>
+</Project>

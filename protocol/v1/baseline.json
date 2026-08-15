@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "status": "frozen",
+  "codexMcp": {
+    "serverVersion": "1.1.0-rc.3",
+    "supportedProtocolVersions": [
+      "2025-11-25",
+      "2025-06-18",
+      "2025-03-26",
+      "2024-11-05"
+    ],
+    "toolSurfaceCanonicalSha256": "63e59e5edf22bbe57f0ce67c62f4f0fb5482ae453d9e7804da7017600ef81fb9",
+    "toolNames": [
+      "aec_list_instances",
+      "aec_get_document_info",
+      "aec_get_selection",
+      "aec_execute_read",
+      "aec_execute_write",
+      "aec_list_providers",
+      "aec_search_provider_tools",
+      "aec_get_provider_tool_schema",
+      "aec_call_provider_read",
+      "aec_call_provider_write"
+    ]
+  },
+  "connectorHttp": {
+    "protocolVersion": 1,
+    "authorization": "Authorization: Bearer <instance-token>",
+    "routes": [
+      { "method": "GET", "path": "/v1/info" },
+      { "method": "GET", "path": "/v1/selection" },
+      { "method": "POST", "path": "/v1/execute" },
+      { "method": "GET", "path": "/v1/requests/{requestId}" },
+      { "method": "POST", "path": "/v1/requests/{requestId}/cancel" }
+    ],
+    "requestKinds": ["selection", "execute"],
+    "executeModes": ["read", "write"],
+    "requestStatuses": [
+      "queued",
+      "waiting_for_application",
+      "running",
+      "succeeded",
+      "failed",
+      "rejected",
+      "expired",
+      "cancelled"
+    ],
+    "baselineCapabilities": [
+      "document.info",
+      "selection.read",
+      "code.read",
+      "code.write",
+      "transaction.rollback"
+    ]
+  }
+}

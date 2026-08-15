@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible AEC Codex defect using non-sensitive test data.
+description: Report a reproducible BIM Bridge defect using non-sensitive test data.
 title: "[Bug]: "
 labels: [bug]
 body:
@@ -10,7 +10,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: AEC Codex version
+      label: BIM Bridge version
       placeholder: 1.1.0-rc.1
     validations:
       required: true

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" Name="BIM Bridge" Description="BIM Bridge local AutoCAD connector" AppVersion="2.0.0" ProductCode="{A603F718-7528-419F-8FE8-73914142883C}">
+  <CompanyDetails Name="BIM Bridge" />
+  <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.3" SeriesMax="R24.3" />
+  <Components>
+    <ComponentEntry AppName="BIM Bridge" Version="2.0.0" ModuleName="./Contents/Windows/BimBridge.AutoCAD2024.dll" AppDescription="BIM Bridge local AutoCAD connector" LoadReasons="LoadOnAutoCADStartup" />
+  </Components>
+</ApplicationPackage>

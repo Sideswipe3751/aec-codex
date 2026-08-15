@@ -23,6 +23,15 @@ function Get-PropertyValue($Object, [string]$Name) {
     return $null
 }
 
+function ConvertTo-UtcDateTime($Value) {
+    if ($Value -is [datetime]) { return ([datetime]$Value).ToUniversalTime() }
+    return [datetime]::Parse(
+        [string]$Value,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind
+    ).ToUniversalTime()
+}
+
 function Find-CodexCli {
     $command = Get-Command codex -ErrorAction SilentlyContinue
     if ($command) {
@@ -120,10 +129,10 @@ $restartRequired = $false
 $stateRestartRequired = Get-PropertyValue $state 'restartRequired'
 $stateInstalledAtUtc = Get-PropertyValue $state 'installedAtUtc'
 if ($state -and $stateRestartRequired -and $stateInstalledAtUtc) {
-    $installedAt = [datetime]::Parse([string]$stateInstalledAtUtc).ToUniversalTime()
+    $installedAt = ConvertTo-UtcDateTime $stateInstalledAtUtc
     $codexStart = $null
     if ($CodexStartedAtUtc) {
-        $codexStart = [datetime]::Parse($CodexStartedAtUtc).ToUniversalTime()
+        $codexStart = ConvertTo-UtcDateTime $CodexStartedAtUtc
     } else {
         $codexProcesses = @(Get-Process -Name Codex,ChatGPT -ErrorAction SilentlyContinue)
         foreach ($process in $codexProcesses) {

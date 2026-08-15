@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>BimBridge.AutoCAD</RootNamespace>
+    <AssemblyName>BimBridge.AutoCAD2024</AssemblyName>
+    <AutoCAD2024InstallDir Condition="'$(AutoCAD2024InstallDir)' == ''">C:\Program Files\Autodesk\AutoCAD 2024</AutoCAD2024InstallDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BimBridge.Host/BimBridge.Host.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="AcCoreMgd">
+      <HintPath>$(AutoCAD2024InstallDir)\AcCoreMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AcDbMgd">
+      <HintPath>$(AutoCAD2024InstallDir)\AcDbMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AcMgd">
+      <HintPath>$(AutoCAD2024InstallDir)\AcMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="CheckAutoCAD2024References" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(AutoCAD2024InstallDir)\AcCoreMgd.dll')" Text="AutoCAD 2024 managed API was not found at $(AutoCAD2024InstallDir). Set AutoCAD2024InstallDir." />
+  </Target>
+</Project>

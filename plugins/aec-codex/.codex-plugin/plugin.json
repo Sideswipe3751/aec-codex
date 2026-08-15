@@ -1,9 +1,9 @@
 {
   "name": "aec-codex",
   "version": "1.1.0-rc.3",
-  "description": "Connect Codex to local Autodesk Revit and AutoCAD sessions with structured MCP providers and transactional fallback.",
+  "description": "Connect Codex to BIM Bridge for safe local Revit and AutoCAD automation.",
   "author": {
-    "name": "AEC Codex"
+    "name": "BIM Bridge"
   },
   "homepage": "https://github.com/Sideswipe3751/aec-codex",
   "repository": "https://github.com/Sideswipe3751/aec-codex",
@@ -11,10 +11,10 @@
   "keywords": ["autocad", "revit", "autodesk", "mcp", "codex"],
   "skills": "./skills/",
   "interface": {
-    "displayName": "AEC Codex",
-    "shortDescription": "Control local Revit and AutoCAD with structured MCP tools.",
-    "longDescription": "Discover structured Revit and AutoCAD tools at runtime, preview writes, and fall back to authenticated version-aware connectors with native transactions.",
-    "developerName": "AEC Codex",
+    "displayName": "BIM Bridge",
+    "shortDescription": "Control AutoCAD and Revit",
+    "longDescription": "Discover structured Revit and AutoCAD tools at runtime, preview writes, use authenticated version-aware connectors with native transactions, and verify completed work with structured readback and focused visual checks when appropriate.",
+    "developerName": "BIM Bridge",
     "category": "Productivity",
     "websiteURL": "https://github.com/Sideswipe3751/aec-codex",
     "privacyPolicyURL": "https://github.com/Sideswipe3751/aec-codex/blob/main/docs/privacy.md",
@@ -22,9 +22,9 @@
     "brandColor": "#1257E5",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": [
-      "Set up AEC Codex on this Windows PC and verify its local Autodesk connectors.",
+      "Set up BIM Bridge on this Windows PC and verify its local Autodesk connectors.",
       "Inspect the active Revit or AutoCAD document without changing it.",
-      "Preview a structured Revit or AutoCAD write before executing it."
+      "Create a simple Revit or AutoCAD element, then verify it with structured data and a focused visual check."
     ]
   },
   "mcpServers": "./.mcp.json"

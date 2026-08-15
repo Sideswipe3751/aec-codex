@@ -1,11 +1,62 @@
 # Changelog
 
-All notable changes to AEC Codex are documented in this file.
+All notable changes to BIM Bridge are documented in this file. Historical
+release entries retain the AEC Codex name used by those published artifacts.
 
 The project follows Semantic Versioning. Release candidates may contain known
 limitations and are intended for cross-machine compatibility testing.
 
 ## [Unreleased]
+
+### Added
+
+- Added the lightweight `bim-bridge` Codex plugin and per-task bootstrap Skill.
+- Added a transactional BIM Bridge Host installer, external
+  `bim-bridge-local` MCP launcher, schema-4 install state, file hashing, and
+  recoverable migration of known legacy AEC Codex components.
+- Extended the single Autodesk version matrix to cover certified AutoCAD 2024
+  alongside the certified Revit 2024-2027 variants.
+
+### Changed
+
+- Renamed the product to BIM Bridge while retaining legacy package, skill,
+  assembly, script, and state identifiers until the installer migration.
+- Extracted host and provider ownership into the agent-independent BIM Bridge
+  Runtime and reduced the Codex MCP server to a compatibility projection.
+- Added explicit capability routing, effect policy, request-bound approvals,
+  verification normalization, and correlated redacted audit records.
+- Added runtime-owned adapter sessions, signed approval grants, a unified
+  contract-v2 host execution pipeline, UI-thread target drift rejection,
+  read-back verification, and a hash-chained execution journal.
+- Reclassified arbitrary in-process query code as a critical ambient-authority
+  operation and changed its MCP annotations from read-only to destructive.
+- Changed provider reloads to validate and atomically switch generations while
+  draining replaced child processes.
+- Made the Codex skill an implicit per-task bootstrap adapter: it performs the
+  shared read-only host check on first relevant activation, requires explicit
+  current-task consent before native installation changes, and documents the
+  same bootstrap lifecycle for future agent adapters without claiming an idle
+  session-start hook.
+- Split plugin installation from native Host consent: installing the Codex
+  plugin adds only the Skill/bootstrap layer, while Host installation remains a
+  separate approved operation and optional structured providers stay excluded.
+
+### Validation
+
+- Version 1 tool names and connector routes remain compatible. Its canonical
+  fixture was intentionally revised for the dynamic-query security annotation.
+- Runtime, provider, policy, adapter, and contract-v2 tests cover deterministic
+  routing, no post-execution fallback, exact write targets, approval replay
+  refusal, evidence normalization, and legacy facade compatibility.
+- Unattended compatibility-facade live acceptance passed on Revit 2024.1,
+  2025.4, 2026.5, and 2027.2, including exact target routing, committed-write
+  read-back, intentional rollback/read-back, dependency isolation, clean
+  shutdown, and descriptor cleanup. Run IDs: `12cf53af848f4298990847d5ef508872`,
+  `970b188ccb864d019e3a1a82d9f61c44`, `ecfb027ff5404f22a058489a177a8952`,
+  and `f7d0981d79db44568dda8edf097cd68b`.
+- AutoCAD 2024 unattended compatibility-facade live acceptance passed with run
+  ID `fa9db225cbb64690884a2bd9bdcb6426`; direct contract-v2 adapter certification
+  remains a separate gate.
 
 ### Planned
 
@@ -105,7 +156,7 @@ limitations and are intended for cross-machine compatibility testing.
 - Revit 2024 final live acceptance is still pending.
 - Autodesk versions other than 2024 are not supported.
 
-[Unreleased]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.3...HEAD
+[Unreleased]: https://github.com/Sideswipe3751/bim-bridge/compare/v1.1.0-rc.3...HEAD
 [1.1.0-rc.3]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.2...v1.1.0-rc.3
 [1.1.0-rc.2]: https://github.com/Sideswipe3751/aec-codex/compare/v1.1.0-rc.1...v1.1.0-rc.2
 [1.1.0-rc.1]: https://github.com/Sideswipe3751/aec-codex/releases/tag/v1.1.0-rc.1

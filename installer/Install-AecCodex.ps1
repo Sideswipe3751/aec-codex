@@ -206,12 +206,12 @@ if ($InstallMode -eq 'HostOnly' -and -not (Test-Path -LiteralPath $packagedPriva
 
 if (-not $SkipBuild) {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw '.NET SDK is required to build this source checkout.' }
-    & dotnet build (Join-Path $SourceRoot 'AEC.Codex.slnx') -c Release
+    & dotnet build (Join-Path $SourceRoot 'BIM.Bridge.slnx') -c Release
     if ($LASTEXITCODE -ne 0) { throw 'AEC Codex build failed.' }
 }
 
-$revitSource = Join-Path $SourceRoot 'src\Aec.Codex.Revit2024\bin\Release\net48'
-$cadSource = Join-Path $SourceRoot 'src\Aec.Codex.AutoCAD2024\bin\Release\net48'
+$revitSource = Join-Path $SourceRoot 'src\BimBridge.Revit2024\bin\Release\net48'
+$cadSource = Join-Path $SourceRoot 'src\BimBridge.AutoCAD2024\bin\Release\net48'
 if (-not (Test-Path -LiteralPath (Join-Path $revitSource 'Aec.Codex.Revit2024.dll'))) { throw 'Revit 2024 release binaries are missing.' }
 if (-not (Test-Path -LiteralPath (Join-Path $cadSource 'Aec.Codex.AutoCAD2024.dll'))) { throw 'AutoCAD 2024 release binaries are missing.' }
 
@@ -240,12 +240,12 @@ try {
     Copy-Directory $revitSource $revitDllTarget
     New-Item -ItemType Directory -Force -Path $revitAddinRoot | Out-Null
     $assemblyPath = Join-Path $revitDllTarget 'Aec.Codex.Revit2024.dll'
-    $manifest = Get-Content -LiteralPath (Join-Path $SourceRoot 'src\Aec.Codex.Revit2024\Aec.Codex.Revit2024.addin') -Raw
+    $manifest = Get-Content -LiteralPath (Join-Path $SourceRoot 'src\BimBridge.Revit2024\BimBridge.Revit2024.addin') -Raw
     $manifest = $manifest -replace '<Assembly>.*?</Assembly>', ('<Assembly>' + [Security.SecurityElement]::Escape($assemblyPath) + '</Assembly>')
     Set-Content -LiteralPath $revitManifestTarget -Value $manifest -Encoding UTF8
 
     New-Item -ItemType Directory -Force -Path (Join-Path $cadBundleTarget 'Contents') | Out-Null
-    Copy-Item -LiteralPath (Join-Path $SourceRoot 'src\Aec.Codex.AutoCAD2024\PackageContents.xml') -Destination $cadBundleTarget -Force
+    Copy-Item -LiteralPath (Join-Path $SourceRoot 'src\BimBridge.AutoCAD2024\PackageContents.xml') -Destination $cadBundleTarget -Force
     Copy-Directory $cadSource (Join-Path $cadBundleTarget 'Contents\Windows')
 
     $codexRegistered = $false

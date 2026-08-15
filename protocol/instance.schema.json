@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aec-codex.local/schemas/instance-v1.json",
-  "title": "AEC Codex connector instance",
+  "title": "BIM Bridge connector instance",
   "type": "object",
   "required": ["protocolVersion", "instanceId", "application", "applicationVersion", "processId", "url", "token", "startedAtUtc", "capabilities"],
   "properties": {

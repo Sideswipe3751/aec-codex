@@ -1,0 +1,44 @@
+using System;
+using System.IO;
+
+namespace BimBridge.Host;
+
+public static class AuditLog
+{
+    private static readonly object Sync = new object();
+
+    public static void TryWrite(ConnectorInfo connector, ConnectorRequestSnapshot request)
+    {
+        try
+        {
+            var root = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "BIM Bridge",
+                "audit");
+            Directory.CreateDirectory(root);
+            var path = Path.Combine(root, DateTime.UtcNow.ToString("yyyy-MM-dd") + ".jsonl");
+            var record = new
+            {
+                timestampUtc = DateTime.UtcNow.ToString("o"),
+                connector = new
+                {
+                    connector.InstanceId,
+                    connector.Application,
+                    connector.ApplicationVersion,
+                    connector.ProcessId,
+                    connector.Document
+                },
+                request
+            };
+            var line = JsonCodec.Serialize(record);
+            lock (Sync)
+            {
+                File.AppendAllText(path, line + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Audit I/O must never corrupt or change an Autodesk transaction result.
+        }
+    }
+}

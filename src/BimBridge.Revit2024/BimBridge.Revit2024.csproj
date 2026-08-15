@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Temporary build-path shim for the frozen 2024 installer. No Revit
+       business source may live in this directory. -->
+  <PropertyGroup>
+    <RevitVersion>2024</RevitVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+  <Import Project="../BimBridge.Revit/BimBridge.Revit.Adapter.props" />
+</Project>

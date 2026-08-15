@@ -1,6 +1,6 @@
 # Third-party notices
 
-AEC Codex installs and interoperates with third-party providers. The
+BIM Bridge installs and interoperates with third-party providers. The
 providers remain separate versioned components; their licenses and copyright
 notices are included in each installed provider directory.
 
@@ -18,7 +18,7 @@ notices are included in each installed provider directory.
 - License: MIT
 - Copyright: Umutcan Edizsalan and contributors
 
-AEC Codex itself is not endorsed by Autodesk or by either upstream project.
+BIM Bridge itself is not endorsed by Autodesk or by either upstream project.
 
 ## Node.js runtime
 
@@ -42,9 +42,9 @@ The private runtime contains the pinned AutoCAD provider and its Python
 dependencies. Package metadata and license files are preserved under
 `Lib/site-packages`; CPython's `LICENSE.txt` is preserved at the runtime root.
 
-## AEC Codex modifications
+## BIM Bridge modifications
 
-AEC Codex applies documented compatibility and security patches while building
+BIM Bridge applies documented compatibility and security patches while building
 the pinned providers. The upstream components remain under their original MIT
 licenses, and their copyright and license notices are preserved in source and
 binary distributions.

@@ -1,0 +1,91 @@
+Set-StrictMode -Version 2.0
+
+function Convert-RevitRuntimeTfmToTargetFramework([string]$RuntimeTfm, [string]$RuntimeConfigPath) {
+    switch -Regex ($RuntimeTfm) {
+        '^net8(\.0)?$' { return 'net8.0-windows' }
+        '^net10(\.0)?$' { return 'net10.0-windows' }
+        default { throw "Unsupported installed Revit API runtime '$RuntimeTfm' at $RuntimeConfigPath" }
+    }
+}
+
+function Get-RevitMatrixEntries([string]$MatrixPath) {
+    [xml]$matrix = Get-Content -LiteralPath $MatrixPath -Raw
+    @($matrix.Project.Choose.When | ForEach-Object {
+        $properties = $_.PropertyGroup
+        [pscustomobject]@{
+            Include = [string]$properties.ReleaseYear
+            AssemblyName = [string]$properties.RevitAssemblyName
+            ManifestName = [string]$properties.RevitManifestName
+            TargetFramework = [string]$properties.RevitTargetFramework
+            SupportedTargetFrameworks = [string]$properties.RevitSupportedTargetFrameworks
+            RuntimeFamily = [string]$properties.RevitRuntimeFamily
+            RuntimeResolution = [string]$properties.RevitRuntimeResolution
+            DynamicCompiler = [string]$properties.RevitDynamicCompiler
+            UseRevitContext = [string]$properties.RevitUseRevitContext
+            ProviderAvailable = [string]$properties.RevitProviderAvailable
+            SupportStatus = [string]$properties.RevitSupportStatus
+            CertificationStatus = [string]$properties.RevitCertificationStatus
+            InstallSubdirectory = [string]$properties.RevitInstallSubdirectory
+            DefaultTemplateSubdirectory = [string]$properties.RevitDefaultTemplateSubdirectory
+        }
+    })
+}
+
+function Resolve-RevitMatrixEntry(
+    [object]$Release,
+    [string]$ProgramFilesPath = $env:ProgramFiles,
+    [string]$ProgramDataPath = $env:ProgramData
+) {
+    $installDirectory = Join-Path $ProgramFilesPath $Release.InstallSubdirectory
+    $apiPath = Join-Path $installDirectory 'RevitAPI.dll'
+    $runtimeConfigPath = Join-Path $installDirectory 'RevitAPI.runtimeconfig.json'
+    $targetFramework = [string]$Release.TargetFramework
+    $detectedRuntime = $null
+
+    if ($Release.RuntimeResolution -eq 'installed-api-runtime') {
+        if (-not (Test-Path -LiteralPath $runtimeConfigPath -PathType Leaf)) {
+            throw "Installed Revit API runtime metadata was not found: $runtimeConfigPath"
+        }
+        $runtimeConfig = Get-Content -LiteralPath $runtimeConfigPath -Raw | ConvertFrom-Json
+        $detectedRuntime = [string]$runtimeConfig.runtimeOptions.tfm
+        $targetFramework = Convert-RevitRuntimeTfmToTargetFramework $detectedRuntime $runtimeConfigPath
+    } elseif ($Release.RuntimeResolution -ne 'fixed') {
+        throw "Unknown Revit runtime resolution policy '$($Release.RuntimeResolution)' for $($Release.Include)."
+    } elseif ($Release.RuntimeFamily -eq 'modern') {
+        if (-not (Test-Path -LiteralPath $runtimeConfigPath -PathType Leaf)) {
+            throw "Installed Revit API runtime metadata was not found: $runtimeConfigPath"
+        }
+        $runtimeConfig = Get-Content -LiteralPath $runtimeConfigPath -Raw | ConvertFrom-Json
+        $detectedRuntime = [string]$runtimeConfig.runtimeOptions.tfm
+        $installedTarget = Convert-RevitRuntimeTfmToTargetFramework $detectedRuntime $runtimeConfigPath
+        if ($installedTarget -ne $targetFramework) {
+            throw "Revit $($Release.Include) declares $targetFramework but the installed API requires $installedTarget."
+        }
+    }
+
+    $supported = @(([string]$Release.SupportedTargetFrameworks).Split(';', [StringSplitOptions]::RemoveEmptyEntries))
+    if ($supported -notcontains $targetFramework) {
+        throw "Revit $($Release.Include) resolved to $targetFramework, which is outside its declared supported target frameworks."
+    }
+
+    [pscustomobject]@{
+        Include = [string]$Release.Include
+        AssemblyName = [string]$Release.AssemblyName
+        ManifestName = [string]$Release.ManifestName
+        TargetFramework = $targetFramework
+        DeclaredTargetFramework = [string]$Release.TargetFramework
+        SupportedTargetFrameworks = $supported
+        DetectedRuntime = $detectedRuntime
+        RuntimeFamily = [string]$Release.RuntimeFamily
+        RuntimeResolution = [string]$Release.RuntimeResolution
+        DynamicCompiler = [string]$Release.DynamicCompiler
+        UseRevitContext = [string]$Release.UseRevitContext
+        ProviderAvailable = [string]$Release.ProviderAvailable
+        SupportStatus = [string]$Release.SupportStatus
+        CertificationStatus = [string]$Release.CertificationStatus
+        InstallDirectory = $installDirectory
+        ApiPath = $apiPath
+        RevitExecutable = Join-Path $installDirectory 'Revit.exe'
+        DefaultTemplate = Join-Path $ProgramDataPath $Release.DefaultTemplateSubdirectory
+    }
+}

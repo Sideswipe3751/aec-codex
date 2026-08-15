@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Dependency-free STDIO MCP host for local AEC Codex connectors."""
+"""Dependency-free Codex MCP adapter for local BIM Bridge Runtime."""
 
 from __future__ import annotations
 
 import json
 import os
 import sys
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +16,32 @@ SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 if str(SCRIPT_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIRECTORY))
 
-from provider_gateway import MANAGER as PROVIDERS, ProviderError
+runtime_candidates = []
+runtime_override = os.environ.get("BIM_BRIDGE_RUNTIME_ROOT") or os.environ.get(
+    "AEC_CODEX_RUNTIME_ROOT"
+)
+if runtime_override:
+    runtime_candidates.append(Path(runtime_override))
+runtime_candidates.extend(
+    [
+        SCRIPT_DIRECTORY / "runtime",
+        SCRIPT_DIRECTORY.parents[2] / "runtime",
+    ]
+)
+for runtime_root in runtime_candidates:
+    if (runtime_root / "aec_runtime" / "__init__.py").is_file():
+        if str(runtime_root) not in sys.path:
+            sys.path.insert(0, str(runtime_root))
+        break
+
+from aec_runtime import (
+    BimBridgeRuntime,
+    ProviderError,
+    RuntimeRequestError,
+    TERMINAL_STATUSES,
+    TargetInputError,
+    normalize_target_filters,
+)
 
 
 SERVER_VERSION = "1.1.0-rc.3"
@@ -31,9 +52,7 @@ SUPPORTED_MCP_VERSIONS = (
     "2024-11-05",
 )
 LATEST_MCP_VERSION = SUPPORTED_MCP_VERSIONS[0]
-TERMINAL_STATUSES = {"succeeded", "failed", "rejected", "expired", "cancelled"}
-APPLICATIONS = {"revit", "autocad"}
-MAX_DESCRIPTOR_BYTES = 64 * 1024
+RUNTIME = BimBridgeRuntime()
 
 
 TARGET_PROPERTIES = {
@@ -115,8 +134,11 @@ TOOLS = [
     },
     {
         "name": "aec_execute_read",
-        "title": "Execute read-only Autodesk API code",
-        "description": "Run bounded read-only code in one selected Revit or AutoCAD session.",
+        "title": "Execute Autodesk API query code",
+        "description": (
+            "Run arbitrary in-process Autodesk API code intended for querying. "
+            "Because the code has ambient host and OS authority, treat this as a critical operation."
+        ),
         "inputSchema": object_schema(
             {
                 **TARGET_PROPERTIES,
@@ -138,8 +160,8 @@ TOOLS = [
             ["description", "code"],
         ),
         "annotations": {
-            "readOnlyHint": True,
-            "destructiveHint": False,
+            "readOnlyHint": False,
+            "destructiveHint": True,
             "idempotentHint": False,
             "openWorldHint": False,
         },
@@ -287,165 +309,7 @@ class ProtocolError(Exception):
         self.message = message
 
 
-class ToolInputError(ValueError):
-    pass
-
-
-def instance_directory() -> Path:
-    configured = os.environ.get("AEC_CODEX_INSTANCE_DIR")
-    if configured:
-        return Path(configured)
-    app_data = os.environ.get("APPDATA", str(Path.home()))
-    return Path(app_data) / "AEC Codex" / "instances"
-
-
-def _validate_descriptor(value: Any, source: Path) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError(f"{source.name}: descriptor must be an object")
-    required = {
-        "protocolVersion",
-        "instanceId",
-        "application",
-        "applicationVersion",
-        "processId",
-        "url",
-        "token",
-        "startedAtUtc",
-        "capabilities",
-    }
-    missing = required - set(value)
-    if missing:
-        raise ValueError(f"{source.name}: missing {', '.join(sorted(missing))}")
-    if value["protocolVersion"] != 1:
-        raise ValueError(f"{source.name}: unsupported connector protocol")
-    if not isinstance(value["instanceId"], str) or not value["instanceId"]:
-        raise ValueError(f"{source.name}: invalid instanceId")
-    if value["application"] not in APPLICATIONS:
-        raise ValueError(f"{source.name}: invalid application")
-    version = value["applicationVersion"]
-    if not isinstance(version, str) or len(version) != 4 or not version.isdigit():
-        raise ValueError(f"{source.name}: invalid applicationVersion")
-    if isinstance(value["processId"], bool) or not isinstance(value["processId"], int):
-        raise ValueError(f"{source.name}: invalid processId")
-    if value["processId"] < 1:
-        raise ValueError(f"{source.name}: invalid processId")
-    parsed = urllib.parse.urlsplit(value["url"])
-    if (
-        parsed.scheme != "http"
-        or parsed.hostname != "127.0.0.1"
-        or parsed.port is None
-        or parsed.path not in {"", "/"}
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ValueError(f"{source.name}: connector URL must be loopback HTTP")
-    if not isinstance(value["token"], str) or len(value["token"]) < 32:
-        raise ValueError(f"{source.name}: invalid token")
-    if not isinstance(value["capabilities"], list) or not all(
-        isinstance(item, str) and item for item in value["capabilities"]
-    ):
-        raise ValueError(f"{source.name}: invalid capabilities")
-    document = value.get("document")
-    if document is not None and not isinstance(document, dict):
-        raise ValueError(f"{source.name}: invalid document")
-    return value
-
-
-def load_instances() -> tuple[list[dict[str, Any]], list[str]]:
-    directory = instance_directory()
-    if not directory.exists():
-        return [], []
-    instances: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    for path in sorted(directory.glob("*.json")):
-        try:
-            if path.stat().st_size > MAX_DESCRIPTOR_BYTES:
-                raise ValueError(f"{path.name}: descriptor is too large")
-            value = json.loads(path.read_text(encoding="utf-8-sig"))
-            instances.append(_validate_descriptor(value, path))
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            warnings.append(str(exc))
-    return instances, warnings
-
-
-def public_instance(instance: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in instance.items() if key != "token"}
-
-
-def _target_filters(arguments: dict[str, Any]) -> dict[str, str]:
-    filters: dict[str, str] = {}
-    for key in ("instanceId", "application", "applicationVersion", "documentTitle"):
-        value = arguments.get(key)
-        if value is None:
-            continue
-        if not isinstance(value, str) or not value.strip():
-            raise ToolInputError(f"{key} must be a non-empty string")
-        filters[key] = value.strip()
-    if "application" in filters and filters["application"] not in APPLICATIONS:
-        raise ToolInputError("application must be revit or autocad")
-    version = filters.get("applicationVersion")
-    if version and (len(version) != 4 or not version.isdigit()):
-        raise ToolInputError("applicationVersion must be a four-digit year")
-    return filters
-
-
-def select_instance(arguments: dict[str, Any]) -> dict[str, Any]:
-    filters = _target_filters(arguments)
-    instances, warnings = load_instances()
-    matches = []
-    for instance in instances:
-        document = instance.get("document") or {}
-        if filters.get("instanceId") not in {None, instance["instanceId"]}:
-            continue
-        if filters.get("application") not in {None, instance["application"]}:
-            continue
-        if filters.get("applicationVersion") not in {None, instance["applicationVersion"]}:
-            continue
-        if filters.get("documentTitle") not in {None, document.get("title")}:
-            continue
-        matches.append(instance)
-    if len(matches) == 1:
-        return matches[0]
-    if not matches:
-        suffix = f" Invalid descriptors: {'; '.join(warnings)}" if warnings else ""
-        raise RuntimeError("No matching Revit or AutoCAD connector is running." + suffix)
-    choices = [public_instance(item) for item in matches]
-    raise RuntimeError(
-        "More than one connector matches. Pass instanceId explicitly: "
-        + json.dumps(choices, ensure_ascii=False)
-    )
-
-
-def connector_request(
-    instance: dict[str, Any],
-    method: str,
-    path: str,
-    payload: dict[str, Any] | None = None,
-    timeout: float = 10,
-) -> dict[str, Any]:
-    body = None if payload is None else json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        instance["url"].rstrip("/") + path,
-        data=body,
-        method=method,
-        headers={
-            "Authorization": "Bearer " + instance["token"],
-            "Content-Type": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:2000]
-        raise RuntimeError(f"Connector HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError("Connector is unavailable: " + str(exc.reason)) from exc
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("Connector returned invalid JSON") from exc
-    if not isinstance(result, dict):
-        raise RuntimeError("Connector response must be a JSON object")
-    return result
+ToolInputError = TargetInputError
 
 
 def _validate_call_arguments(name: str, arguments: Any) -> dict[str, Any]:
@@ -456,7 +320,7 @@ def _validate_call_arguments(name: str, arguments: Any) -> dict[str, Any]:
     if unknown:
         raise ToolInputError("Unknown argument(s): " + ", ".join(sorted(unknown)))
     if name in {"aec_get_document_info", "aec_get_selection", "aec_execute_read", "aec_execute_write"}:
-        _target_filters(arguments)
+        normalize_target_filters(arguments)
     if name.startswith("aec_execute_"):
         for key in ("description", "code"):
             value = arguments.get(key)
@@ -487,71 +351,21 @@ def _validate_call_arguments(name: str, arguments: Any) -> dict[str, Any]:
     return arguments
 
 
-def _list_instances(arguments: dict[str, Any]) -> dict[str, Any]:
-    filters = _target_filters(arguments)
-    instances, warnings = load_instances()
-    visible = []
-    for instance in instances:
-        if filters.get("application") not in {None, instance["application"]}:
-            continue
-        if filters.get("applicationVersion") not in {None, instance["applicationVersion"]}:
-            continue
-        visible.append(public_instance(instance))
-    return {"instances": visible, "warnings": warnings}
-
-
-def _execute(instance: dict[str, Any], arguments: dict[str, Any], mode: str) -> dict[str, Any]:
-    timeout_seconds = arguments.get("timeoutSeconds", 30)
-    payload = {
-        "mode": mode,
-        "description": arguments["description"].strip(),
-        "code": arguments["code"].strip(),
-        "timeoutSeconds": timeout_seconds,
-    }
-    created = connector_request(instance, "POST", "/v1/execute", payload)
-    if created.get("status") in TERMINAL_STATUSES:
-        return created
-    request_id = created.get("requestId")
-    if not isinstance(request_id, str) or not request_id:
-        raise RuntimeError("Connector did not return a requestId")
-    deadline = time.monotonic() + timeout_seconds + 15
-    while time.monotonic() < deadline:
-        result = connector_request(instance, "GET", "/v1/requests/" + request_id)
-        if result.get("status") in TERMINAL_STATUSES:
-            return result
-        time.sleep(0.2)
-    raise RuntimeError(f"Timed out waiting for connector request {request_id}")
-
-
-def _require_unambiguous_provider_session(provider_id: str) -> None:
-    application = PROVIDERS.get(provider_id).descriptor.get("application")
-    if application not in APPLICATIONS:
-        return
-    instances, _warnings = load_instances()
-    matching = [item for item in instances if item.get("application") == application]
-    if len(matching) > 1:
-        raise RuntimeError(
-            f"{provider_id} cannot target one of several {application} sessions safely. "
-            "Close the extra sessions or use the instance-aware AEC Codex connector fallback."
-        )
-
-
 def invoke_tool(name: str, arguments: Any) -> dict[str, Any]:
     if name not in TOOL_BY_NAME:
         raise ToolInputError("Unknown tool: " + name)
     values = _validate_call_arguments(name, arguments)
     if name == "aec_list_providers":
-        return PROVIDERS.list(probe=values.get("probe", False))
+        return RUNTIME.list_providers(probe=values.get("probe", False))
     if name == "aec_search_provider_tools":
-        return PROVIDERS.search(
+        return RUNTIME.search_provider_tools(
             values["query"].strip(), values.get("provider"), values.get("limit", 10)
         )
     if name == "aec_get_provider_tool_schema":
-        return PROVIDERS.schema(values["provider"].strip(), values["toolName"].strip())
+        return RUNTIME.provider_schema(values["provider"].strip(), values["toolName"].strip())
     if name in {"aec_call_provider_read", "aec_call_provider_write"}:
         access = "read" if name.endswith("_read") else "write"
-        _require_unambiguous_provider_session(values["provider"].strip())
-        return PROVIDERS.invoke(
+        return RUNTIME.invoke_provider(
             values["provider"].strip(),
             values["toolName"].strip(),
             values["arguments"],
@@ -560,14 +374,13 @@ def invoke_tool(name: str, arguments: Any) -> dict[str, Any]:
             values.get("timeoutSeconds", 60),
         )
     if name == "aec_list_instances":
-        return _list_instances(values)
-    instance = select_instance(values)
+        return RUNTIME.list_instances(values)
     if name == "aec_get_document_info":
-        return connector_request(instance, "GET", "/v1/info")
+        return RUNTIME.document_info(values)
     if name == "aec_get_selection":
-        return connector_request(instance, "GET", "/v1/selection")
+        return RUNTIME.selection(values)
     mode = "read" if name == "aec_execute_read" else "write"
-    return _execute(instance, values, mode)
+    return RUNTIME.execute_code(values, mode)
 
 
 def tool_result(value: dict[str, Any], is_error: bool = False) -> dict[str, Any]:
@@ -602,7 +415,7 @@ def handle(message: Any) -> dict[str, Any] | None:
                 "serverInfo": {
                     "name": "aec-codex",
                     "version": SERVER_VERSION,
-                    "description": "Local MCP host for Revit and AutoCAD connectors",
+                    "description": "BIM Bridge MCP adapter for local Revit and AutoCAD connectors",
                 },
                 "instructions": (
                     "List instances before the first Autodesk operation. Read before writing, "
@@ -623,7 +436,14 @@ def handle(message: Any) -> dict[str, Any] | None:
             raise ProtocolError(-32602, "tools/call requires a tool name")
         try:
             value = invoke_tool(name, params.get("arguments", {}))
-        except (ToolInputError, ProviderError, RuntimeError, KeyError, ValueError) as exc:
+        except (
+            ToolInputError,
+            ProviderError,
+            RuntimeRequestError,
+            RuntimeError,
+            KeyError,
+            ValueError,
+        ) as exc:
             result = tool_result({"error": str(exc)}, is_error=True)
         else:
             result = tool_result(value, is_error=value.get("status") in TERMINAL_STATUSES - {"succeeded"})

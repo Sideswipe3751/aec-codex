@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="src/Aec.Codex.Bridge/Aec.Codex.Bridge.csproj" />
-  <Project Path="src/Aec.Codex.AutoCAD2024/Aec.Codex.AutoCAD2024.csproj" />
-  <Project Path="src/Aec.Codex.Revit2024/Aec.Codex.Revit2024.csproj" />
-  <Project Path="tests/Aec.Codex.Bridge.Tests/Aec.Codex.Bridge.Tests.csproj" />
-</Solution>

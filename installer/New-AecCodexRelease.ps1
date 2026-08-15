@@ -27,7 +27,7 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
     [IO.File]::WriteAllText($Path, $Content, (New-Object Text.UTF8Encoding($false)))
 }
 
-& dotnet build (Join-Path $SourceRoot 'AEC.Codex.slnx') -c Release
+& dotnet build (Join-Path $SourceRoot 'BIM.Bridge.slnx') -c Release
 if ($LASTEXITCODE -ne 0) { throw 'AEC Codex release build failed.' }
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('aec-codex-release-' + [Guid]::NewGuid().ToString('N'))
@@ -68,10 +68,10 @@ try {
         'plugins\aec-codex\scripts\Start-AecCodexMcp.ps1',
         'plugins\aec-codex\providers\providers.lock.json',
         'providers',
-        'src\Aec.Codex.Revit2024\Aec.Codex.Revit2024.addin',
-        'src\Aec.Codex.Revit2024\bin\Release\net48',
-        'src\Aec.Codex.AutoCAD2024\PackageContents.xml',
-        'src\Aec.Codex.AutoCAD2024\bin\Release\net48'
+        'src\BimBridge.Revit2024\BimBridge.Revit2024.addin',
+        'src\BimBridge.Revit2024\bin\Release\net48',
+        'src\BimBridge.AutoCAD2024\PackageContents.xml',
+        'src\BimBridge.AutoCAD2024\bin\Release\net48'
     )) { Copy-ReleasePath $path $stageRoot }
 
     $providerStage = Join-Path $stageRoot 'artifacts\providers'

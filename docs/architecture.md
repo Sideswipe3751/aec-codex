@@ -1,75 +1,838 @@
-# Architecture
+# BIM Bridge architecture contract
 
-## Boundaries
+Last reviewed: 2026-08-15
 
-AEC Codex has three trust boundaries:
+This document is the canonical architecture contract for BIM Bridge. Read it
+before changing source code, build logic, tests, Autodesk manifests, provider
+routing, packaging, or installation behavior. If a change makes this document
+inaccurate, update the document in the same change.
 
-1. Codex loads the plugin skill and starts the local STDIO MCP host.
-2. The MCP host discovers active Autodesk connectors from per-process instance
-   descriptors under `%APPDATA%\AEC Codex\instances`.
-3. A connector accepts authenticated loopback HTTP requests and dispatches all
-   Autodesk API access onto the application's supported execution context.
+## Status and architecture decision
 
-The MCP host also manages two version-pinned structured child MCPs over STDIO.
-Their tools are discovered at runtime and exposed through a five-tool gateway,
-so upstream catalogs can evolve without increasing Codex's top-level tool
-surface. Revit's community add-in is patched to loopback-only transport with a
-per-user token; AutoCAD MCP runs in live COM mode with remote HTTP and arbitrary
-command/LISP execution disabled.
+The product is **BIM Bridge**. Codex is not the owner of the Autodesk execution
+system. The durable engine is an agent-independent **BIM Bridge Runtime**.
+Codex, DeepSeek Harness, MCP clients, a CLI, and future Autodesk or third-party
+agents are adapters over the same versioned **BIM Bridge Contract**.
 
-The MCP host never loads Autodesk assemblies. Revit and AutoCAD connectors do
-not call OpenAI services and do not expose a non-loopback listener.
+Artifacts created by releases through `1.1.0-rc.3` use `AEC Codex`,
+`aec-codex`, and `%LOCALAPPDATA%\AEC Codex`. The `2.0.0-alpha.1` development
+line introduces the `bim-bridge` Codex plugin, `bim-bridge-local` MCP
+registration, `%LOCALAPPDATA%\BIM Bridge` state, and BIM Bridge Autodesk
+manifests. The installer treats the old paths as explicit migration inputs and
+removes only known legacy-owned components. Version-1 `aec_*` MCP tool names
+and legacy connector discovery remain compatibility identifiers until their
+contracts can change independently. BIM Bridge 2.x host and Autodesk adapter
+assemblies use `BimBridge.*` identities; `Aec.Codex.*` assemblies are accepted
+only as explicit legacy migration inputs and are never emitted by a 2.x build.
+New runtime configuration accepts `BIM_BRIDGE_*` environment names first and
+the legacy `AEC_CODEX_*` names as fallbacks.
 
-## Version model
+This is an evolutionary redesign, not a rewrite. The authenticated connector,
+Revit shared adapter, runtime resolver, transaction implementation, structured
+provider gateway, and unattended certification work remain valuable and move
+behind clearer boundaries. Current source paths may remain in place while
+ownership is extracted; logical boundaries must be established and tested
+before large directory moves.
 
-The protocol and MCP host are version-independent. The bridge is designed for
-three Autodesk runtime families:
+**Current implementation milestone:** package and locally validate the
+agent-independent runtime behind the Codex adapter. The current scope installs
+only the Codex adapter; DeepSeek Harness and other agent packages remain
+deferred. Future agent packages may reuse the same read-only status, explicit
+consent, host bootstrap, and restart lifecycle, but must not fork the runtime or
+host binaries. This sequencing constraint does not make Codex the owner of
+runtime behavior.
 
-- `net48`: Autodesk 2024 and selected earlier releases.
-- `net8.0-windows`: Autodesk 2025 and 2026 compatibility line.
-- `net10.0-windows`: Autodesk 2027.
+As of this review, unattended live acceptance has passed on the certification
+machine for Revit 2024.1 on .NET Framework 4.8, Revit 2025.4 on .NET 8, Revit
+2026.5 on .NET 10, and Revit 2027.2 on .NET 10. AutoCAD 2024 live acceptance has
+also passed against the exact test adapter, including MCP routing, read, write,
+rollback, clean shutdown, and descriptor cleanup. The machine-compared version
+1 protocol/tool snapshot is frozen and broad runtime extraction has passed its
+current compatibility tests.
 
-The current adapter projects and installer target 2024. The shared bridge also
-builds on .NET 10 so 2027 adapters can reuse it, but 2027 is not certified or
-shipped yet. Supporting a version means more than a successful build: loading,
-document routing, transactions, rollback, shutdown, and representative
-read/write operations must pass inside that exact product.
+The frozen version 1 compatibility fixture is
+`protocol/v1/baseline.json`. It machine-compares the ten Codex MCP tool schemas
+and annotations, supported MCP protocol versions, five connector routes, bearer
+authentication shape, execute modes, and normalized request statuses. Contract
+version 2 begins beside it at `protocol/v2/aec-contract.schema.json`; the v1
+fixture remains authoritative for the current production facade until an
+explicit compatibility decision updates it.
 
-## Approval model
+The current Phase 2 through Phase 5 implementation lives in
+`runtime/aec_runtime`. It owns host discovery and authenticated request polling,
+staged provider lifecycle and classification, the capability registry,
+deterministic route plans, runtime-owned adapter sessions, signed request-bound
+grants, direct contract-v2 host execution, read-back verification orchestration,
+normalized results, and a redacted hash-chained execution journal. The Codex
+STDIO MCP process is a version 1 projection over the same service.
+`provider_gateway.py` is only a legacy import shim. The ten-tool MCP surface and
+five connector routes remain the production compatibility facade.
 
-Codex is the sole user-facing approval authority. Connectors do not implement
-an Ask Approval/Full Access setting and do not display write-confirmation
-dialogs. MCP tools advertise read-only, side-effect, and destructive semantics
-so Codex can apply the user's selected action-approval policy.
+The version 1 compatibility fixture was deliberately revised on 2026-08-14 to
+classify arbitrary in-process query code as destructive/ambient-authority code
+rather than as a read-only tool. Tool names and connector routes did not change.
 
-Authentication, validation, transaction rollback, timeouts, and audit logging
-remain mandatory engineering controls. They do not constitute a second
-approval layer.
+Revit 2024, 2025, 2026, and 2027 and AutoCAD 2024 have passed their current
+version-specific acceptance gates. On 2026-08-14 the user explicitly started
+the packaging phase, lifting the release-installer freeze for this certified
+scope. The new installer is a local development alpha and is not a published
+release until its release archive, checksum, and cross-machine gates pass.
 
-## Dynamic execution and rollback
+## Architectural invariants
 
-The MCP exposes separate read and write tools. Their `code` value is a C#
-method body compiled in memory inside the selected Autodesk process. Revit
-dispatches it through `ExternalEvent`; AutoCAD dispatches it from the idle
-application context. The code has access only to the variables documented by
-the connector contract, although it runs with the Autodesk process/user's OS
-permissions and must therefore remain a write-annotated capability.
+1. **The BIM Bridge Runtime is agent-independent.** It must not import Codex,
+   DeepSeek Harness, Claude, or another agent SDK. Agent-specific instructions,
+   tool presentation, approval UI, and lifecycle hooks live only in adapters.
+2. **The versioned BIM Bridge Contract is the center of the system.** MCP is the first
+   public transport adapter, not the business-logic owner. A second adapter must
+   not create a second request, result, error, capability, or policy model.
+3. **The BIM Bridge Runtime never loads Autodesk assemblies.** Autodesk API assemblies
+   are loaded only inside the exact matching Autodesk process.
+4. **Host connectors are thin policy-enforcement points.** They own process
+   registration, authentication, target-document checks, Autodesk UI-thread
+   dispatch, native transaction/document locking, bounded compilation, and
+   result collection. They do not perform agent reasoning or provider routing.
+5. **Product behavior is shared by product, not copied by year.** Revit and
+   AutoCAD each have a shared implementation. Per-release builds contain only
+   exact SDK references, assembly identity, manifest metadata, runtime-family
+   selection, and bounded compatibility shims.
+6. **Runtime and API variants are explicit.** A release year is not assumed to
+   identify one runtime for its servicing lifetime. The resolved installed API
+   build is part of routing and certification evidence.
+7. **Product/version support has one machine-readable source of truth.** Build,
+   diagnostics, certification, packaging, and installation consume the same
+   matrix; no adapter or installer maintains another year list.
+8. **Capabilities and providers are separate concepts.** A capability describes
+   what can be done; a provider describes one eligible execution mechanism.
+   Provider availability never changes the meaning, risk, or result schema of a
+   capability.
+9. **Routing is deterministic and fail-closed.** A denial, invalid input,
+   transaction failure, destructive-operation refusal, or possibly committed
+   mutation is never retried through a different provider. Fallback is allowed
+   only before execution when capability or provider availability is absent.
+10. **Safety policy is independent of the calling agent.** The runtime owns
+    immutable denies, risk classification, target scoping, and approval
+    requirements. The active agent adapter owns the single user-facing approval
+    experience, but a trusted runtime/broker authority signs the resulting
+    request-bound grant. Adapters cannot authenticate themselves or mint grants.
+    Host connectors do not add a second approval dialog.
+11. **Verification is first-class evidence, not a prompt convention.** Results
+    declare execution, transaction, change, verification, and rollback facts.
+    Repair is a new explicit request; it is never a silent mutation retry.
+12. **A successful compile is not certification.** Each exact Autodesk
+    runtime/API build variant must pass load, routing, read, write, rollback,
+    shutdown, dependency, policy, and cleanup tests before release packaging.
+13. **The installer consumes certified decisions; it does not make them.** It
+    discovers installed products, resolves them through the single version
+    matrix, and deploys only matching entries already marked certified.
 
-Revit wraps each write in a `TransactionGroup` and `Transaction`. AutoCAD wraps
-each write in a `DocumentLock` and database `Transaction`. Generated code does
-not own these objects. An exception aborts the entire request and the response
-sets `rolledBack: true`; a successful response is emitted only after commit.
+## Ownership model
 
-## Installer transaction
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| Agent adapter | tool/UI projection, agent lifecycle, approval presentation, contract translation | Autodesk calls, provider policy, transactions, business routing |
+| Protocol adapter | MCP/CLI/HTTP framing and version negotiation | a parallel domain model or special-case behavior |
+| BIM Bridge Runtime | host directory, capability registry, deterministic route plan, policy, provider supervision, verification orchestration, normalized errors, audit correlation | agent loops, model calls, Autodesk assemblies |
+| Provider adapter | capability metadata and one execution mechanism | global policy or undisclosed fallback |
+| Host bridge | authenticated local transport and request lifecycle | Autodesk APIs or product-specific transactions |
+| Product host | UI-thread dispatch, exact document, native transactions/locks, API compatibility, dynamic compiler | agent SDKs, external MCP routing, approval UI |
 
-The current-user installer has two explicit modes. `HostOnly` installs native
-connectors, structured providers, the local MCP host, a maintenance copy of the
-uninstaller, and versioned state without modifying any Codex marketplace.
-`Development` additionally installs and registers a cache-busted personal
-plugin from a full source checkout.
+`BimBridge.Host` currently combines the host bridge contract and transport.
+That is acceptable during migration because its public types are neutral
+host-protocol types and do not reference an agent SDK.
 
-Both modes move every existing target into a private rollback directory and
-delete it only after connector and provider installation succeeds. Installation
-is refused while Revit or AutoCAD is running. Marketplace first-run setup uses
-a pinned host-only release URL and SHA-256 digest. The host payload excludes the
-manifest that pins its hash, avoiding a self-referential archive.
+## Target topology
+
+```text
+Codex          DeepSeek Harness          CLI / tests          future agents
+  |                    |                     |                      |
+  +---------------- agent / protocol adapters --------------------+
+                               |
+                  Versioned BIM Bridge Contract
+                               |
+             +-----------------+------------------+
+             |         BIM Bridge Runtime          |
+             | host directory / capabilities      |
+             | routing / policy / audit            |
+             | provider supervision / verification|
+             +----------+---------------+----------+
+                        |               |
+             structured providers      host providers
+             Autodesk / approved MCP   Revit / AutoCAD / future
+                        |               |
+                        |        authenticated loopback bridge
+                        |               |
+                        +------ exact Autodesk process
+```
+
+The first migration keeps the runtime embedded in the existing local STDIO MCP
+process. A permanent background daemon is not required. If simultaneous Codex,
+DeepSeek, and CLI clients later need shared provider processes or audit state, a
+single-user loopback broker may host the same runtime interfaces; broker mode
+must not introduce different routing or policy semantics.
+
+## Versioned BIM Bridge Contract
+
+The contract is defined as language-neutral schemas under `protocol/`. Version
+1 connector endpoints remain supported while version 2 is introduced beside
+them. Adapters translate transport messages to the same domain objects.
+
+An execution request contains at least:
+
+- a correlation ID and contract version;
+- an exact host selector for mutations: application, resolved release/API
+  variant, process/instance ID, and document identity;
+- a stable capability ID and typed arguments;
+- declared intent (`read` or `write`), timeout, cancellation, dry-run, and
+  idempotency constraints;
+- optional provider preference as a constrained hint, never a command to bypass
+  routing policy;
+- optional preconditions and postcondition/verification specification;
+- a runtime-issued authenticated adapter session and, when required, a signed,
+  non-replayable approval grant bound to the session, request hash, target,
+  effect summary, issuer, and expiry.
+
+An execution result contains at least:
+
+- normalized status: `succeeded`, `succeeded_unverified`, `partial`, `failed`,
+  `rejected`, `expired`, or `cancelled`;
+- chosen capability/provider and exact host evidence;
+- transaction/document-lock outcome and `rolledBack` evidence;
+- normalized created, modified, and deleted identifiers when observable;
+- verification strength, checks, issues, and evidence;
+- warnings and structured errors with a stable code, stage, retryability, and
+  provider-native diagnostic details kept in a bounded evidence field;
+- timings and audit correlation IDs.
+
+The caller does not select `native`, `mcp`, or `csharp` as an unrestricted mode.
+It requests a capability. Dynamic code remains an explicit high-risk capability
+(`revit.code.read`, `revit.code.write`, and AutoCAD equivalents), not an
+invisible fallback for every failed operation.
+
+## Capabilities, routing, and providers
+
+The capability registry is data, not prompt prose. Every entry declares:
+
+- stable capability ID, application, intent, input/output schemas, and risk;
+- supported product/API variants and required host capabilities;
+- candidate providers and their trust tier;
+- targeting strength (exact instance/document or application-global);
+- dry-run, idempotency, cancellation, transaction, rollback, and verification
+  guarantees.
+
+Every provider implements the same conceptual lifecycle: describe health and
+capabilities, validate/plan without mutation, execute once, normalize evidence,
+and optionally verify. It may be a deterministic host operation, an official or
+approved structured MCP tool, or an explicit dynamic-code host capability.
+
+`revit.view.capture` is a deterministic low-risk host capability. The shared
+Revit product host exports one existing printable view with native
+`ImageExportOptions`; it does not compile caller-supplied code or modify the
+model. Output is constrained to BIM Bridge's current-user capture directory and
+returns the exact file and view identity. The Codex v1 adapter projects this
+built-in host operation through its existing provider discovery/schema/read-call
+tools, and the connector carries it as a backward-compatible structured
+operation on `/v1/execute`. No eleventh MCP tool or sixth connector route is
+introduced.
+
+The resolver first removes ineligible candidates by target, runtime/API variant,
+health, trust, and policy. It then prefers the narrowest deterministic provider.
+An agent may request an eligible provider for reproducibility, but policy has the
+final decision. No routing step may hide a provider switch after mutation might
+have started.
+
+The resulting execution plan is a deterministic, inspectable route/effect plan,
+not an LLM workflow planner. Decomposing a user's broad goal into multiple AEC
+requests remains the calling agent's responsibility.
+
+Third-party providers remain pinned child processes. This process boundary
+isolates lifecycle and crashes but is not, by itself, an OS security sandbox.
+Provider generations are parsed and validated before an atomic switch; replaced
+processes drain in-flight requests before shutdown. Their tool names
+and schemas are discovered at runtime. Provider-specific tools may be projected
+for advanced clients, but they are not the stable BIM Bridge Contract. Arbitrary-code
+or command tools from external providers remain blocked.
+
+## Policy and approval
+
+The runtime is the policy decision point; product hosts are enforcement points;
+agent adapters are approval presenters. This preserves one human interaction
+without making Codex or DeepSeek the owner of AEC safety.
+
+Policy evaluates adapter identity, host/document target, capability risk,
+effect estimate, provider trust, dry-run evidence, and configured access mode.
+`Full Access` may satisfy configurable approval rules but never overrides
+immutable denies, authentication, exact-target requirements, transaction
+ownership, or unsafe-scope limits. Unknown third-party adapters default to the
+most restrictive policy.
+
+An approval response is scoped to one request or a narrowly defined batch and
+cannot be reused for another document, capability, effect summary, or expired
+session. Contract v2 accepts only sessions registered by the runtime and grants
+signed by its approval authority. The signing key is never exposed to an agent
+adapter and rotates when the embedded runtime restarts, invalidating old grants.
+The version 1 Codex flow remains an explicitly weaker compatibility authority.
+
+## Verification and repair
+
+The runtime owns verification specifications and result normalization; the
+provider or product host performs checks where the strongest guarantee exists.
+
+- For a native host operation, required postconditions should run before a
+  Revit `TransactionGroup` is assimilated or before an AutoCAD transaction is
+  committed when the API permits it. A failed required check then rolls back
+  atomically.
+- For an external provider that cannot keep the native transaction open, the
+  result must state `succeeded_unverified` or `partial` until independent
+  read-back completes. It must never imply atomic rollback.
+- Verification failure produces structured issues and repair eligibility. The
+  agent may propose a repair, but execution requires a new policy evaluation
+  and, when applicable, a new approval.
+- Automatic retry is limited to proven non-mutating transport/availability
+  failures and must preserve the same idempotency key.
+
+## Execution journal
+
+Runtime audit events are redacted before they enter an append-only, hash-chained
+JSONL execution journal under the current user's BIM Bridge state directory.
+The journal records requests, route and policy decisions, exact targets, state
+transitions, provider identity, transaction/rollback facts, verification, and
+normalized results. It does not record model reasoning or chain-of-thought.
+
+The hash chain is tamper-evident evidence, not a signature against a malicious
+same-user process. Read-only operations may be reconstructed from journal data.
+A mutating replay is always a new execution request with fresh target validation,
+policy evaluation, idempotency handling, and approval.
+
+## Agent adapters
+
+The Codex package is a thin adapter containing its skill, product metadata,
+MCP launch configuration, and Codex-specific approval/tool annotations. Routing
+rules currently written in the skill move into runtime registry and policy data;
+the skill keeps only user guidance and adapter operation instructions.
+
+Every agent adapter uses the same session-bootstrap lifecycle. On its first
+activation in a relevant task, it runs the shared read-only host-status check.
+When installation, repair, or upgrade is needed, it presents the exact version,
+source, digest, locations, running-product constraints, and rollback behavior,
+then invokes the shared host installer only after affirmative consent in that
+task. The adapter performs only its own platform registration; it must not fork
+the host installer, Autodesk payload, or installation state model. A skill can
+be selected implicitly after a relevant user request, but does not imply a
+background session-start hook on platforms that do not provide one.
+
+DeepSeek Harness integration starts by mounting the same BIM Bridge MCP server, because
+DeepSeek's tool registry already accepts MCP-discovered tools. A later native
+plugin may expose an ergonomic `ctx.aec` service to other Harness plugins, but it
+must be a client of the versioned BIM Bridge Contract and contain no copied runtime or
+Autodesk logic. DeepSeek Harness is currently a developer preview with explicit
+compatibility-breaking changes expected, so all Cordis imports and configuration
+remain inside that adapter.
+
+The project does not fork DeepSeek Harness, implement its agent loop, manage its
+model/session history, or copy its permission system. The same non-goals apply to
+Codex and future agent platforms.
+
+Official DeepSeek references:
+
+- [DeepSeek Harness repository and developer-preview notice](https://github.com/deepseek-ai/deepseek-harness)
+- [DeepSeek Harness architecture and capability seams](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md)
+- [DeepSeek Harness extension plugin shapes](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cookbook/extension-cookbook.md)
+
+## Target repository ownership
+
+The end state is organized by responsibility, but extraction precedes movement:
+
+```text
+protocol/                       # versioned AEC schemas and compatibility
+runtime/aec_runtime/            # agent/transport/Autodesk-free core
+  hosts/ capabilities/ routing/ policy/ verification/ providers/ audit/
+adapters/
+  mcp/                          # public MCP projection
+  codex/                        # Codex plugin and skill
+  deepseek-harness/             # optional thin Cordis adapter, later
+  cli/                          # diagnostics and automation
+src/
+  BimBridge.Host/               # neutral connector transport/lifecycle
+  BimBridge.Revit/              # shared Revit host plus runtime/API variants
+  BimBridge.AutoCAD*/           # shared AutoCAD host plus runtime/API variants
+eng/                            # single Autodesk matrix, build, certification
+tests/
+  protocol/ runtime/ providers/ hosts/ adapters/ live/
+installer/                      # transactional host packaging and migration
+```
+
+The existing `plugins/aec-codex/mcp-server/aec_mcp_server.py` currently mixes
+MCP framing, instance discovery, routing, provider supervision, and validation.
+It is the extraction source for `runtime/aec_runtime`, not code to duplicate.
+`provider_gateway.py` is now a compatibility import for runtime provider
+infrastructure. The current MCP server is a thin projection over the unified
+runtime service. Physical package/namespace renames wait for the packaging phase
+and must preserve the version 1 compatibility fixtures.
+
+## Explicitly rejected alternatives
+
+- **Do not turn BIM Bridge into a DeepSeek-only plugin.** DeepSeek is an adapter
+  over the BIM Bridge Contract and may be replaced without changing Autodesk hosts.
+- **Do not keep Codex as the routing and safety core.** That would force every
+  future agent to reproduce Codex prompt policy and make behavior diverge.
+- **Do not create an always-on daemon before it is needed.** Extract a pure
+  runtime behind the existing STDIO process first; introduce broker deployment
+  only for measured multi-client requirements.
+- **Do not expose one model tool for every provider tool.** Capability search
+  and a bounded stable surface prevent schema growth; provider-specific schemas
+  remain discoverable for advanced use.
+- **Do not let an LLM freely choose a provider after failure.** The runtime
+  resolves eligible routes before execution and prevents unsafe fallback.
+- **Do not force one dynamic compiler across incompatible runtime families.**
+  Keep the compiler seam stable and select implementations by tested runtime
+  evidence.
+- **Do not move every directory in the first implementation phase.** Contract
+  tests and behavior-preserving extraction precede structural cleanup.
+
+## Revit runtime matrix
+
+| Revit release/API line | Target framework | Runtime family | Dynamic compiler | Add-in isolation |
+| --- | --- | --- | --- | --- |
+| 2024 | `net48` | `netfx` | CodeDOM | unavailable |
+| 2025 through the .NET 8 servicing line | `net8.0-windows` | `modern` | Roslyn | preferred when supported |
+| 2025 after Autodesk's .NET 10 servicing migration | `net10.0-windows` | `modern` | Roslyn | preferred when supported |
+| 2026 through 2026.4 | `net8.0-windows` | `modern` | Roslyn | required for BIM Bridge |
+| 2026.5 and later | `net10.0-windows` | `modern` | Roslyn | required for BIM Bridge |
+| 2027 | `net10.0-windows` | `modern` | Roslyn | required for BIM Bridge |
+| 2028+ | declared after Autodesk publishes requirements | new or existing family | selected by family | required when available |
+
+Revit 2024 requires .NET Framework 4.8. Revit 2025 and the original Revit 2026
+line use .NET 8. Autodesk migrated serviced 2025/2026 product lines to .NET 10;
+the installed Revit 2026.5 API on the certification machine already requires
+`System.Runtime` 10. Revit 2027 also uses .NET 10. Build selection therefore
+reads the installed `RevitAPI.runtimeconfig.json` for matrix entries whose
+runtime can change during servicing, validates the detected target against the
+entry's allowed targets, and records the resolved runtime in build and test
+evidence. A future release or service update must never be assigned a runtime
+by guessing from its year.
+
+Official references:
+
+- [Revit 2024 development requirements](https://help.autodesk.com/cloudhelp/2024/ENU/Revit-API/files/Revit_API_Developers_Guide/Introduction/Getting_Started/Welcome_to_the_Revit_Platform_API/Revit_API_Revit_API_Developers_Guide_Introduction_Getting_Started_Welcome_to_the_Revit_Platform_API_Development_Requirements_html.html)
+- [Revit 2025 migration to .NET 8](https://help.autodesk.com/cloudhelp/2025/ENU/Revit-API/files/Revit_API_Developers_Guide/Introduction/Getting_Started/Using_the_Autodesk_Revit_API/Revit_API_Revit_API_Developers_Guide_Introduction_Getting_Started_Using_the_Autodesk_Revit_API_NET8_Update_html.html)
+- [Revit 2026 add-in dependency isolation](https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API/files/Revit_API_Developers_Guide/Introduction/Add_In_Integration/Revit_API_Revit_API_Developers_Guide_Introduction_Add_In_Integration_Add_in_Dependency_Isolation_html.html)
+- [Autodesk 2025/2026 product-line .NET 10 servicing update](https://blog.autodesk.io/autodesk-desktop-products-2025-2026-net-10-updates/)
+- [Revit 2027 migration to .NET 10 and API changes](https://help.autodesk.com/view/RVT/2027/ENU/?guid=f7165618-24c9-4160-a7a4-09979fe4a981)
+
+## Single version matrix
+
+The repository contains one machine-readable MSBuild matrix at
+`eng/Autodesk.Versions.props`. Each Revit entry owns at least:
+
+- release year and support status;
+- runtime family, runtime-resolution policy, default target framework, and
+  allowed serviced target frameworks;
+- expected installation/API reference location;
+- adapter assembly and artifact names;
+- add-in manifest behavior, including isolation;
+- dynamic compiler implementation;
+- structured-provider availability;
+- certification state and required test suite.
+
+The parameterized Revit project at
+`src/BimBridge.Revit/BimBridge.Revit.csproj`, shared matrix
+resolver `eng/RevitVersionMatrix.ps1`, adapter build, and live-test entry point
+consume this matrix today. For a runtime-migrating release the resolver reads
+the installed API's runtime metadata and emits artifacts under the resolved
+target framework directory. The generic adapter is built through the matrix
+script with an explicit version and is intentionally not added to the ordinary
+solution build, which remains usable on machines without every Revit release.
+Diagnostics, documentation tables, packaging, and the installer must
+also derive version behavior from the matrix. They must not maintain parallel
+hard-coded lists of years or assume that one release year always maps to one
+runtime artifact.
+
+The matrix is named for Autodesk rather than Revit deliberately. When AutoCAD
+multi-version extraction begins, extend this same source with product-qualified
+entries and shared fields; do not introduce an AutoCAD year list beside it. The
+long-term support key is `(product, release, resolved API/runtime variant)`, not
+just a four-digit year. Certification state attaches to that exact key. Build
+scripts may expose product-specific views of the matrix, but those views are
+derived and never independently edited.
+
+## Shared Revit implementation
+
+The shared Revit engine owns:
+
+- application startup and shutdown;
+- `ExternalEvent` creation and dispatch;
+- connector instance registration and refresh;
+- active document and selection reporting;
+- read request execution;
+- write transaction groups, commit, failure, and rollback semantics;
+- capability reporting and audit results.
+
+The parameterized version build owns only:
+
+- the exact Revit API references;
+- target framework and assembly identity;
+- generated `.addin` metadata;
+- a bounded compatibility implementation for real API differences.
+
+All shared sources live under `src/BimBridge.Revit` and compile into the
+`BimBridge.Revit` namespace and `BimBridge.Revit<year>.dll` assembly identity.
+The same project is evaluated
+once per requested matrix entry and emits a distinct assembly/output directory
+for that Revit release. Avoid scattered
+`REVIT2027`-style conditional compilation; put unavoidable differences in the
+central compatibility boundary with tests.
+
+`src/BimBridge.Revit2024` contains a project/manifest compatibility shim that
+preserves the legacy installer and build input paths. The BIM Bridge installer
+consumes the neutral matrix-built output instead. The shim imports the neutral
+adapter properties and contains no Revit business source; remove it with the
+legacy installer binding, never copy it for newer releases.
+
+## Dynamic code compilation
+
+The connector exposes separate read and write fallback tools whose C# method
+bodies are compiled inside the selected Revit process.
+
+- The .NET Framework runtime service uses CodeDOM.
+- Modern .NET runtime services use Roslyn.
+- The shared executor depends on a compiler interface and contains no runtime
+  or year checks.
+- Compiler dependencies must ship beside the matching adapter and must be
+  included in dependency-isolation tests.
+
+Compiler uniformity is not an architectural goal by itself. Revit 2024 keeps
+CodeDOM for the certified baseline because it is native to the .NET Framework
+runtime and has the smallest dependency surface. Roslyn targeting `net48` may
+later be evaluated as an alternate runtime-family implementation for improved
+diagnostics or analysis, but only behind `IRevitCodeCompiler` and only after
+load/dependency/security tests. Upper layers must never distinguish CodeDOM
+from Roslyn.
+
+Generated code receives the documented Autodesk context variables and runs with
+the Autodesk process and user's OS permissions. A `read` mode expresses query
+intent and transaction behavior; it is not a security sandbox because code can
+reach ambient host and OS APIs. All arbitrary dynamic code is therefore a
+critical capability and requires approval. Low-risk reads must use structured,
+precompiled capabilities.
+
+## Add-in manifests and dependency isolation
+
+Add-in manifests are generated from the version matrix and one template. A
+manifest is not copied and edited by year.
+
+Modern Revit adapters should run outside Revit's default assembly context when
+the version supports it. Revit 2026 and later use the stable `BIM.Bridge`
+context name and `<UseRevitContext>False</UseRevitContext>` so Roslyn, JSON, and other
+private dependencies do not collide with Revit, Dynamo, or unrelated add-ins.
+
+Current-user add-in locations remain version-specific:
+`%APPDATA%\Autodesk\Revit\Addins\<year>`. All-user locations must be obtained
+from the version matrix because Autodesk changed their security/location rules
+in Revit 2027.
+
+## Transactions and rollback
+
+Every Revit write executes in one `TransactionGroup` and one bounded
+`Transaction` unless an explicitly documented operation requires a different
+native pattern. Generated code does not own these objects.
+
+An exception or failed commit rolls back the request and returns
+`rolledBack: true`. Success is reported only after commit and transaction-group
+assimilation. A failed structured-provider mutation must not be retried through
+dynamic code as a way around its safety boundary.
+
+Connector-owned Revit transactions install one shared, non-interactive failure
+preprocessor. Native warnings are captured in the execution result and removed
+from Revit's modal failure pipeline; native errors are captured, force rollback,
+and return a failed result with `rolledBack: true`. The product host must never
+wait for an agent or user to click a Revit failure dialog, and it must not use UI
+automation to dismiss one.
+
+## Automated certification
+
+Testing is layered:
+
+1. Contract tests cover schema evolution, version negotiation, normalization,
+   idempotency, and version 1 compatibility without an agent or Autodesk.
+2. Runtime tests cover host selection, capability resolution, policy,
+   deterministic routing, provider failure boundaries, verification, approval
+   grant scope, audit correlation, timeouts, and cancellation.
+3. Provider tests cover capability metadata, targeting, dry-run behavior,
+   result normalization, and refusal to fall back after a rejected or possibly
+   mutating call.
+4. Matrix builds compile each host adapter against the exact installed Autodesk
+   API. Compatibility tests exercise the bounded per-version API surface.
+5. A separate development smoke-test driver launches the exact Revit executable
+   and creates a disposable project without depending on a person at the UI.
+6. Live acceptance verifies connector discovery, version/document routing,
+   selection/read behavior, a representative write and read-back, intentional
+   failure with complete rollback, clean document close, and connector cleanup
+   on Revit shutdown.
+7. Adapter contract tests prove Codex, MCP, CLI, and later DeepSeek projections
+   create equivalent BIM Bridge requests and interpret equivalent results. End-to-
+   end tests are additive; one agent's success never certifies another adapter.
+
+The smoke-test driver may create a project from an installed template, save it
+under a disposable test directory, then open and activate it. It must never use
+a production model. Each run emits a machine-readable report containing the
+Revit build, process ID, adapter version, document identity, checks performed,
+and pass/fail evidence.
+
+`eng/Run-RevitLiveAcceptance.ps1 -Version <year>` is the live certification
+entry point. It uses one in-process bootstrap source compiled against the same
+resolved matrix entry and one Autodesk-free external .NET driver. The bootstrap
+activates only when its child Revit process receives a random request path,
+validates a run ID and token, refuses an already active document, and permits
+file creation only beneath
+`artifacts/certification/revit/<year>/<run-id>`. The external driver probes
+structured providers first, then performs all Revit interaction through the
+version-independent MCP tools and an exact connector instance ID.
+
+`eng/Run-AutoCADLiveAcceptance.ps1 -Version 2024` is the current AutoCAD
+baseline entry point. With `-IsolateCurrentUserPlugins` it temporarily moves
+only the installed current-user `BIM Bridge.bundle`, loads the exact signed test
+adapter with a generated AutoCAD script, and restores the production bundle in
+`finally`. Its external driver performs exact MCP routing, selection, read,
+committed write/read-back, intentional rollback/read-back, cleanup, save to a
+disposable certification DWG, clean process shutdown, and descriptor cleanup.
+The driver archives an exact stale test descriptor if failure requires forced
+process termination; it never attaches to an existing AutoCAD process or opens
+a user drawing.
+
+Every run writes `report.json` in its run directory. The driver verifies load,
+exact version/process/document routing, selection, read, committed write and
+read-back, intentional exception with `rolledBack: true`, rollback read-back,
+runtime dependency location, test-element cleanup, clean Revit shutdown, and
+connector descriptor cleanup. It never attaches a certification run to an
+already running Revit process of the same exact release.
+
+Live-test add-ins must have a valid trusted Authenticode signature before the
+default entry point launches Revit. The driver does not click or suppress
+Autodesk's publisher prompt; it fails fast with `untrusted_binary` evidence.
+`-AllowUnsigned` exists only for an explicitly prepared development machine
+whose Revit trust policy already permits those exact artifacts, and is not a
+release or CI mode.
+
+An installed production manifest that owns the same add-in ID blocks live
+certification by default. On a dedicated certification machine,
+`-TemporarilyDisableConflictingManifests` may move only the exact conflicting
+manifest out of Revit's `*.addin` discovery pattern for the duration of the
+run. The entry point must restore every moved manifest in `finally`, including
+after build, launch, driver, or cleanup failure; it must never overwrite a path
+that became occupied while the test was running.
+
+`-IsolateCurrentUserAddins` extends the same reversible mechanism to every
+pre-existing `*.addin` in the selected Revit year's current-user add-in
+directory. Certification uses this mode when an unrelated or unsigned
+current-user add-in could display a modal prompt or otherwise contaminate the
+result. It does not alter all-user manifests, installed binaries, trust stores,
+or Autodesk security settings, and follows the same no-overwrite restoration
+rule.
+
+`eng/Initialize-RevitLiveTestTrust.ps1` creates or reuses one self-signed
+current-user development code-signing certificate, stores its non-exportable
+private key only in `Cert:\CurrentUser\My`, and trusts the public certificate
+only in the current user's Root and TrustedPublisher stores. Its non-secret
+state is recorded below `%LOCALAPPDATA%\BIM Bridge\development-trust`. When that
+state exists, the live-test entry point signs only the generated adapter and
+bootstrap DLLs inside this repository after every build and verifies their
+Authenticode status before deployment. This trust is development-only and
+must never be reused as release signing or installed by the release installer.
+
+## Migration sequence
+
+The redesign proceeds through compatibility gates. A later phase does not begin
+by deleting the previous working path.
+
+### Phase 0: freeze and complete the baseline
+
+**Status: complete.** The exact reports and frozen version 1 fixture are stored
+in the repository artifacts and protocol tests; installer work remained frozen.
+
+- preserve the passing Revit 2025, 2026, and 2027 reports;
+- certify Revit 2024 and establish an AutoCAD 2024 unattended baseline;
+- record the current MCP tool schemas and connector protocol fixtures;
+- make no release-installer changes.
+
+### Phase 1: introduce contract version 2 beside version 1
+
+**Status: complete for the schema boundary.** Contract-v2 schemas, golden
+examples, negative fixtures, and compatibility tests exist beside version 1.
+
+- add schemas for targets, capabilities, requests, results, errors,
+  verification, policy decisions, and approval grants;
+- add golden compatibility and negative tests;
+- keep current MCP tool names and connector `/v1` endpoints as a facade.
+
+### Phase 2: extract the agent-free runtime
+
+**Status: complete for the current production surface.** Host and provider
+lifecycle behavior is owned by `runtime/aec_runtime`; legacy modules are import
+facades only.
+
+- move descriptor discovery, target selection, validation, and request polling
+  out of `aec_mcp_server.py` into importable runtime modules;
+- move provider lifecycle and classification out of `provider_gateway.py`;
+- keep the MCP server as the only production adapter until behavior parity and
+  existing MCP tests pass.
+
+### Phase 3: make capabilities and providers explicit
+
+**Status: complete for the current connector and structured-provider paths.**
+The registry emits deterministic inspectable route plans, records targeting and
+trust, honors only eligible provider preferences, and forbids fallback after an
+execution attempt starts.
+
+- add the registry and provider interface;
+- encode current precedence, targeting limitations, and no-fallback rules as
+  data and tests rather than skill prose;
+- wrap connector operations, structured MCP tools, and dynamic code without
+  changing their host implementation.
+
+### Phase 4: add policy, verification, and correlated audit
+
+**Status: embedded agent-free slice implemented; shared host path live-certified,
+direct v2 adapter certification pending.** Exact write targets are revalidated by
+the product host on its UI thread before execution. Runtime-issued sessions,
+signed non-replayable grants, direct v2 execution, read-back verification,
+normalized evidence, and a redacted hash-chained journal are implemented and
+tested. On 2026-08-14 the same host execution path passed unattended live
+acceptance through the version 1 Codex compatibility facade on Revit 2024.1,
+2025.4, 2026.5, 2027.2, and AutoCAD 2024. This does not certify a future direct
+version 2 agent adapter. The version 1 Codex facade continues to recognize Codex
+as its weaker legacy approval authority.
+
+- introduce deterministic risk/effect planning and request-bound approval
+  challenges while retaining the version 1 Codex compatibility path;
+- normalize transaction, change, rollback, and verification evidence;
+- do not add autonomous repair or an LLM to the runtime.
+
+### Phase 5: thin the Codex adapter
+
+**Status: complete for the ten-tool facade, with the 2026-08-14 security
+annotation revision.** The MCP process owns STDIO
+framing, version negotiation, schemas, and argument validation; all host,
+provider, routing, and policy behavior is delegated to `BimBridgeRuntime`.
+
+- replace routing policy in the skill with runtime capability discovery;
+- keep Codex-specific tool annotations, installation hooks, and approval
+  presentation only;
+- rerun all existing Codex-to-Revit and Codex-to-AutoCAD acceptance tests.
+
+### Phase 6: add DeepSeek Harness compatibility
+
+This phase is explicitly deferred and is outside the current Codex-only
+implementation milestone. It begins only after the user changes that sequencing
+decision and the version 2 contract plus Codex adapter are certified.
+
+- first mount the certified BIM Bridge MCP adapter as a Harness MCP plugin;
+- optionally add a small `ctx.aec` service wrapper only after the version 2
+  contract is stable;
+- pin the tested Harness version because its developer preview permits breaking
+  changes, and test the adapter independently from the BIM Bridge Runtime.
+
+### Phase 7: generalize AutoCAD versions
+
+- convert AutoCAD 2024 into a shared AutoCAD host plus matrix-driven variants;
+- reuse the same contract, runtime, capability, policy, and certification
+  layers; do not reuse Revit transaction code or API compatibility shims.
+
+### Phase 8: redesign packaging and installation
+
+**Status: in progress for a Codex-only development alpha.** The lightweight
+`bim-bridge` plugin and Skill bootstrap are separated from the transactional
+Windows Host installer. The installer uses the Autodesk matrix, deploys the
+four certified Revit variants and AutoCAD 2024 when present, records hashes,
+refuses loaded Autodesk processes, migrates known legacy-owned components, and
+rolls back files and MCP registrations on failure. Publishing a signed release
+archive and adapting other agents remain separate future gates.
+
+- package the certified runtime, selected agent adapters, providers, and exact
+  host variants;
+- retain one recoverable installation transaction and one aggregated restart;
+- support Codex-only, DeepSeek-only, both, or runtime/CLI deployments without
+  changing host binaries.
+
+## Installer boundary
+
+The packaging phase is active for the Codex-only development alpha. The Codex
+plugin is deliberately lightweight: it ships the Skill, a read-only status
+probe, and an approved bootstrap wrapper, but does not own or auto-start an MCP
+server. The Windows Host installer separately deploys the agent-independent
+runtime and matching certified Autodesk connectors, then registers the external
+`bim-bridge-local` MCP. Later AutoCAD variants remain deferred. The installer
+consumes certified artifacts and the version matrix; it does not decide
+compatibility itself.
+
+Install state hashes the launcher, MCP/runtime source, Autodesk adapters and
+manifests, and the critical private-Python bootstrap binaries. It does not hash
+every standard-library or optional package file on every Skill activation;
+packaged-archive checksum verification protects the complete release payload,
+while the bounded installed-file set keeps the per-task read-only status probe
+responsive.
+
+Its required behavior is:
+
+- support a lightweight agent package that can bootstrap the shared native host
+  after a read-only status check and explicit current-task approval; installing
+  the agent package alone is not consent to modify Autodesk or host state;
+- discover installed Autodesk versions;
+- deploy only matching, certified artifacts;
+- keep connector support separate from optional provider support;
+- refuse unsafe replacement of assemblies loaded by a running Autodesk process;
+- apply all selected versions as one recoverable installation transaction;
+- restore every previous target if any version fails;
+- record installed files and hashes per product/version;
+- aggregate restart requirements so one final restart is sufficient.
+
+For the legacy migration, known installer-owned paths and the
+`aec-codex-local` registration may be removed inside the same rollback boundary.
+Unknown data and development trust under the legacy state root are preserved.
+The alpha does not install optional structured providers. An agent package must
+not modify native state merely because a task started: bootstrap happens on the
+first relevant Skill activation, and mutation still requires explicit consent
+in that task.
+
+After a successful install or repair, the installer may remove only stale
+`staging-*` and `rollback-*` directories that resolve directly beneath the BIM
+Bridge state root. It must never broaden that cleanup to the state root itself
+or to unknown legacy directories.
+
+## Adding a future Revit release
+
+1. Verify Autodesk's runtime, SDK, API, add-in location, and isolation changes.
+2. Add one version-matrix entry with support status `experimental`.
+3. Build the parameterized adapter; its manifest is generated from the shared
+   template.
+4. Compile shared code against the exact new Revit API.
+5. Add a compatibility shim only for observed API differences.
+6. Run the complete unattended live acceptance suite for every supported
+   runtime/API build variant that will be shipped.
+7. Change status to `certified` only after evidence is recorded for the exact
+   variant; never infer certification of a .NET 10 service update from a .NET 8
+   result for the same release year.
+8. Allow packaging and installation only for certified entries.
+
+The normal case should require a matrix entry and certification, not a copied
+codebase. Autodesk runtime or API breaks may require a new runtime service or a
+small compatibility implementation, but must not leak version checks through
+the shared engine.
+
+## Architecture change rule
+
+An implementation change requires an architecture update in the same change
+when it alters any of the following:
+
+- trust or process boundaries;
+- supported product/version/runtime matrix;
+- source ownership between shared and version-specific layers;
+- connector protocol, capabilities, routing, or approval semantics;
+- dynamic compilation or dependency loading;
+- transaction and rollback guarantees;
+- automated certification requirements;
+- packaging, install, repair, upgrade, restart, or uninstall behavior.
+
+Small implementation details that preserve these contracts do not require a
+document edit, but reviewers must still verify the document before making the
+change.

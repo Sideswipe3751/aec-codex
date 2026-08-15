@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bim-bridge.local/protocol/v2/bim-bridge-contract.schema.json",
+  "title": "BIM Bridge Contract v2",
+  "description": "Agent-, transport-, provider-, and Autodesk-runtime-neutral BIM Bridge execution contract.",
+  "oneOf": [
+    { "$ref": "#/$defs/executionRequest" },
+    { "$ref": "#/$defs/executionResult" },
+    { "$ref": "#/$defs/capability" },
+    { "$ref": "#/$defs/policyDecision" },
+    { "$ref": "#/$defs/approvalGrant" }
+  ],
+  "$defs": {
+    "application": {
+      "type": "string",
+      "enum": ["revit", "autocad"]
+    },
+    "intent": {
+      "type": "string",
+      "enum": ["read", "write"]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "release", "apiVariant"],
+      "properties": {
+        "application": { "$ref": "#/$defs/application" },
+        "release": { "type": "string", "pattern": "^[0-9]{4}$" },
+        "apiVariant": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "runtimeVariant": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "instanceId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "processId": { "type": "integer", "minimum": 1 },
+        "document": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "title"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "path": { "type": ["string", "null"], "maxLength": 32768 }
+          }
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "contractVersion", "id", "application", "intents", "risk", "inputSchema", "outputSchema"],
+      "properties": {
+        "kind": { "const": "capability" },
+        "contractVersion": { "const": 2 },
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_-]*)+$" },
+        "application": { "$ref": "#/$defs/application" },
+        "intents": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/intent" }
+        },
+        "risk": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "inputSchema": { "type": "object" },
+        "outputSchema": { "type": "object" },
+        "requiredHostCapabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "supportsDryRun": { "type": "boolean", "default": false },
+        "supportsCancellation": { "type": "boolean", "default": false },
+        "idempotency": { "type": "string", "enum": ["none", "conditional", "guaranteed"] },
+        "transactionGuarantee": { "type": "string", "enum": ["none", "host_native", "provider_reported"] },
+        "rollbackGuarantee": { "type": "string", "enum": ["none", "host_native", "provider_reported"] },
+        "verificationGuarantee": { "type": "string", "enum": ["none", "readback", "in_transaction"] }
+      }
+    },
+    "verificationSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "checks"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "capabilityId", "arguments"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "capabilityId": { "type": "string", "minLength": 3, "maxLength": 256 },
+              "arguments": { "type": "object" },
+              "expected": {}
+            }
+          }
+        }
+      }
+    },
+    "approvalGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "contractVersion", "grantId", "requestHash", "targetHash", "effectHash", "expiresAtUtc", "nonce", "issuedBy", "issuedAtUtc", "signature"],
+      "properties": {
+        "kind": { "const": "approval_grant" },
+        "contractVersion": { "const": 2 },
+        "grantId": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "requestHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "targetHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "effectHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "expiresAtUtc": { "type": "string", "format": "date-time" },
+        "nonce": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "issuedBy": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "issuedAtUtc": { "type": "string", "format": "date-time" },
+        "signature": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "effectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capabilityId", "providerId", "providerTrust", "intent", "risk", "dryRun", "target", "argumentKeys", "effectHash"],
+      "properties": {
+        "capabilityId": { "type": "string", "minLength": 3, "maxLength": 256 },
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "providerTrust": { "type": "string", "enum": ["unknown", "third_party", "approved", "local"] },
+        "intent": { "$ref": "#/$defs/intent" },
+        "risk": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "dryRun": { "type": "boolean" },
+        "target": { "$ref": "#/$defs/target" },
+        "argumentKeys": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "effectHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "executionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "intent": { "const": "write" } }, "required": ["intent"] },
+          "then": {
+            "properties": {
+              "target": { "required": ["application", "release", "apiVariant", "instanceId", "processId", "document"] }
+            }
+          }
+        }
+      ],
+      "required": ["kind", "contractVersion", "correlationId", "adapterSession", "target", "capabilityId", "arguments", "intent", "timeoutSeconds", "dryRun"],
+      "properties": {
+        "kind": { "const": "execution_request" },
+        "contractVersion": { "const": 2 },
+        "correlationId": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "adapterSession": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["adapterId", "sessionId", "authenticated", "sessionToken", "expiresAtUtc"],
+          "properties": {
+            "adapterId": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "sessionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "authenticated": { "const": true },
+            "sessionToken": { "type": "string", "minLength": 32, "maxLength": 256 },
+            "expiresAtUtc": { "type": "string", "format": "date-time" }
+          }
+        },
+        "target": { "$ref": "#/$defs/target" },
+        "capabilityId": { "type": "string", "minLength": 3, "maxLength": 256 },
+        "arguments": { "type": "object" },
+        "intent": { "$ref": "#/$defs/intent" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 1800 },
+        "dryRun": { "type": "boolean" },
+        "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 256 },
+        "providerPreference": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "preconditions": { "type": "array", "items": { "type": "object" } },
+        "verification": { "$ref": "#/$defs/verificationSpec" },
+        "approvalGrant": { "$ref": "#/$defs/approvalGrant" }
+      }
+    },
+    "structuredError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "stage", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+$" },
+        "stage": { "type": "string", "enum": ["validation", "routing", "planning", "policy", "execution", "verification", "normalization", "transport"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "retryable": { "type": "boolean" },
+        "providerDiagnostic": { "type": "object", "maxProperties": 32 }
+      }
+    },
+    "verificationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strength", "status", "checks", "issues"],
+      "properties": {
+        "strength": { "type": "string", "enum": ["none", "provider_reported", "readback", "in_transaction"] },
+        "status": { "type": "string", "enum": ["not_requested", "passed", "failed", "inconclusive"] },
+        "checks": { "type": "array", "items": { "type": "object" } },
+        "issues": { "type": "array", "items": { "type": "object" } },
+        "evidence": { "type": "object", "maxProperties": 64 }
+      }
+    },
+    "policyDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "contractVersion", "decisionId", "correlationId", "status", "reasonCodes", "effectHash", "effect", "evaluatedAtUtc"],
+      "properties": {
+        "kind": { "const": "policy_decision" },
+        "contractVersion": { "const": 2 },
+        "decisionId": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "correlationId": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "status": { "type": "string", "enum": ["allowed", "denied", "approval_required"] },
+        "reasonCodes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "effectHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "effect": { "$ref": "#/$defs/effectSummary" },
+        "evaluatedAtUtc": { "type": "string", "format": "date-time" }
+      }
+    },
+    "executionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "contractVersion", "correlationId", "status", "selected", "hostEvidence", "transaction", "changes", "verification", "warnings", "errors", "timings", "audit"],
+      "properties": {
+        "kind": { "const": "execution_result" },
+        "contractVersion": { "const": 2 },
+        "correlationId": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "status": { "type": "string", "enum": ["succeeded", "succeeded_unverified", "partial", "failed", "rejected", "expired", "cancelled"] },
+        "selected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capabilityId", "providerId"],
+          "properties": {
+            "capabilityId": { "type": "string", "minLength": 3 },
+            "providerId": { "type": "string", "minLength": 1 }
+          }
+        },
+        "hostEvidence": { "$ref": "#/$defs/target" },
+        "transaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "rolledBack"],
+          "properties": {
+            "status": { "type": "string", "enum": ["not_applicable", "committed", "rolled_back", "unknown"] },
+            "rolledBack": { "type": "boolean" },
+            "documentLock": { "type": "string", "enum": ["not_applicable", "acquired", "failed", "unknown"] }
+          }
+        },
+        "changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["created", "modified", "deleted"],
+          "properties": {
+            "created": { "type": "array", "items": { "type": "string" } },
+            "modified": { "type": "array", "items": { "type": "string" } },
+            "deleted": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "output": {},
+        "verification": { "$ref": "#/$defs/verificationResult" },
+        "warnings": { "type": "array", "items": { "type": "string", "maxLength": 4096 } },
+        "errors": { "type": "array", "items": { "$ref": "#/$defs/structuredError" } },
+        "timings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startedAtUtc", "endedAtUtc", "elapsedMilliseconds"],
+          "properties": {
+            "startedAtUtc": { "type": "string", "format": "date-time" },
+            "endedAtUtc": { "type": "string", "format": "date-time" },
+            "elapsedMilliseconds": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "audit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["auditId", "requestHash"],
+          "properties": {
+            "auditId": { "type": "string", "minLength": 16, "maxLength": 256 },
+            "requestHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        }
+      }
+    }
+  }
+}

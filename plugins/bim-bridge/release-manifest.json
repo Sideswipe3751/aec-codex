@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "channel": "development",
+  "version": "2.0.0-alpha.1",
+  "published": false,
+  "releaseZipUri": null,
+  "sha256": null,
+  "developmentSourceRoot": null,
+  "platform": "windows-x64",
+  "mcpRegistration": "bim-bridge-local",
+  "supportedProducts": {
+    "autocad": ["2024"],
+    "revit": ["2024", "2025", "2026", "2027"]
+  },
+  "installLocations": [
+    "%LOCALAPPDATA%\\BIM Bridge",
+    "%APPDATA%\\Autodesk\\ApplicationPlugins\\BIM Bridge.bundle",
+    "%APPDATA%\\Autodesk\\Revit\\Addins\\<version>\\BIM.Bridge.addin"
+  ],
+  "legacyMigration": {
+    "plugin": "aec-codex@personal",
+    "mcpRegistration": "aec-codex-local",
+    "stateRoot": "%LOCALAPPDATA%\\AEC Codex"
+  }
+}
