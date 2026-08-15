@@ -170,11 +170,11 @@ def wait_for_exit(process: subprocess.Popen[Any], timeout: float) -> None:
         raise TimeoutError("Timed out waiting for clean AutoCAD shutdown") from exception
 
 
-def archive_stale_descriptor(run_directory: Path, process_id: int) -> str | None:
+def archive_stale_descriptor(run_directory: Path, version: str, process_id: int) -> str | None:
     app_data = os.environ.get("APPDATA")
     if not app_data:
         return None
-    descriptor = Path(app_data) / "BIM Bridge" / "instances" / f"autocad-2024-{process_id}.json"
+    descriptor = Path(app_data) / "BIM Bridge" / "instances" / f"autocad-{version}-{process_id}.json"
     if not descriptor.is_file():
         return None
     try:
@@ -204,7 +204,7 @@ def main() -> int:
     run_directory = Path(options.run_directory).resolve()
     certification_root = Path(options.certification_root).resolve()
     require(run_directory.is_relative_to(certification_root), "Run directory escaped certification root")
-    require(options.version == "2024", "The current AutoCAD live driver supports only the 2024 baseline")
+    require(len(options.version) == 4 and options.version.isdigit(), "AutoCAD version must be a four-digit release year")
     require(Path(options.autocad_exe).is_file(), "AutoCAD executable does not exist")
     require(Path(options.adapter_assembly).is_file(), "AutoCAD adapter assembly does not exist")
     require(Path(options.mcp_server).is_file(), "BIM Bridge MCP server does not exist")
@@ -263,6 +263,7 @@ def main() -> int:
         require(selection.get("count") == 0, "Disposable AutoCAD drawing did not start with an empty selection")
         add_check(report, "selection", "The disposable drawing started with an empty selection.", selection)
 
+        expected_assembly_name = f"BimBridge.AutoCAD{options.version}"
         read = mcp.call_tool(
             "aec_execute_read",
             {
@@ -273,7 +274,7 @@ def main() -> int:
                     "version = Autodesk.AutoCAD.ApplicationServices.Core.Application.Version.ToString(), "
                     "processId = System.Diagnostics.Process.GetCurrentProcess().Id, "
                     "adapter = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => "
-                    "assembly.GetName().Name == \"BimBridge.AutoCAD2024\").Select(assembly => assembly.Location).Single() };"
+                    f"assembly.GetName().Name == {csharp_string(expected_assembly_name)}).Select(assembly => assembly.Location).Single() }};"
                 ),
             },
             30.0,
@@ -419,7 +420,7 @@ def main() -> int:
             process.wait(timeout=15)
             report["forcedProcessTermination"] = True
         if process is not None:
-            archived = archive_stale_descriptor(run_directory, process.pid)
+            archived = archive_stale_descriptor(run_directory, options.version, process.pid)
             if archived:
                 report["archivedStaleDescriptor"] = archived
         report["endedAtUtc"] = utc_now()

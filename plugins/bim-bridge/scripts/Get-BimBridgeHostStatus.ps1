@@ -55,7 +55,8 @@ function Test-ProductPath([string[]]$Roots, [string]$RelativePath) {
 
 if (-not $ManifestPath) { $ManifestPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'release-manifest.json' }
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { throw "Release manifest is missing: $ManifestPath" }
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'Test-BimBridgeReleaseManifest.ps1')
+$manifest = Read-VerifiedBimBridgeReleaseManifest $ManifestPath
 if ($manifest.schemaVersion -ne 2) { throw "Unsupported BIM Bridge release manifest schema: $($manifest.schemaVersion)" }
 
 if (-not $RoamingRoot) { $RoamingRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData) }

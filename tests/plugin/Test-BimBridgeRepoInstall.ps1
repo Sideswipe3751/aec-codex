@@ -17,6 +17,8 @@ $workBuddyMarketplacePath = Join-Path $SourceRoot '.codebuddy-plugin\marketplace
 $workBuddyPluginPath = Join-Path $SourceRoot 'adapters\workbuddy\.codebuddy-plugin\plugin.json'
 $workBuddyMcpPath = Join-Path $SourceRoot 'adapters\workbuddy\.mcp.json'
 $releasePath = Join-Path $SourceRoot 'plugins\bim-bridge\release-manifest.json'
+$releaseSignaturePath = $releasePath + '.sig'
+$releaseVerifierPath = Join-Path $SourceRoot 'plugins\bim-bridge\scripts\Test-BimBridgeReleaseManifest.ps1'
 $readmePath = Join-Path $SourceRoot 'README.md'
 $installPath = Join-Path $SourceRoot 'INSTALL.md'
 $architecturePath = Join-Path $SourceRoot 'docs\architecture.md'
@@ -27,6 +29,9 @@ $workBuddyMarketplace = Get-Content -LiteralPath $workBuddyMarketplacePath -Raw 
 $workBuddyPlugin = Get-Content -LiteralPath $workBuddyPluginPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $workBuddyMcp = Get-Content -LiteralPath $workBuddyMcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $release = Get-Content -LiteralPath $releasePath -Raw -Encoding UTF8 | ConvertFrom-Json
+. $releaseVerifierPath
+$verifiedRelease = Read-VerifiedBimBridgeReleaseManifest $releasePath $releaseSignaturePath
+if ([string]$verifiedRelease.version -ne [string]$release.version) { throw 'Signed release verification returned a different version.' }
 $readme = Get-Content -LiteralPath $readmePath -Raw -Encoding UTF8
 $install = Get-Content -LiteralPath $installPath -Raw -Encoding UTF8
 $architecture = Get-Content -LiteralPath $architecturePath -Raw -Encoding UTF8

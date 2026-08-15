@@ -49,11 +49,12 @@ runtime behavior.
 
 As of this review, unattended live acceptance has passed on the certification
 machine for Revit 2024.1 on .NET Framework 4.8, Revit 2025.4 on .NET 8, Revit
-2026.5 on .NET 10, and Revit 2027.2 on .NET 10. AutoCAD 2024 live acceptance has
-also passed against the exact test adapter, including MCP routing, read, write,
-rollback, clean shutdown, and descriptor cleanup. The machine-compared version
-1 protocol/tool snapshot is frozen and broad runtime extraction has passed its
-current compatibility tests.
+2026.5 on .NET 10, and Revit 2027.2 on .NET 10. AutoCAD 2024 (R24.3), 2025
+(R25.0), 2026 (R25.1), and 2027 (R26.0) also passed against their exact adapters,
+including MCP routing, read, write, readback, rollback, cleanup, clean shutdown,
+and descriptor cleanup. The machine-compared version 1 protocol/tool snapshot
+is frozen and broad runtime extraction has passed its current compatibility
+tests.
 
 The frozen version 1 compatibility fixture is
 `protocol/v1/baseline.json`. It machine-compares the ten Codex MCP tool schemas
@@ -77,11 +78,11 @@ The version 1 compatibility fixture was deliberately revised on 2026-08-14 to
 classify arbitrary in-process query code as destructive/ambient-authority code
 rather than as a read-only tool. Tool names and connector routes did not change.
 
-Revit 2024, 2025, 2026, and 2027 and AutoCAD 2024 have passed their current
-version-specific acceptance gates. On 2026-08-14 the user explicitly started
-the packaging phase, lifting the release-installer freeze for this certified
-scope. The new installer is a local development alpha and is not a published
-release until its release archive, checksum, and cross-machine gates pass.
+Revit 2024, 2025, 2026, and 2027 and AutoCAD 2024, 2025, 2026, and 2027 have
+passed their current version-specific acceptance gates. On 2026-08-14 the user
+explicitly started the packaging phase, lifting the release-installer freeze for
+this certified scope. The new installer remains a development alpha until its
+release archive, signed manifest, checksum, and cross-machine gates pass.
 
 ## Architectural invariants
 
@@ -385,7 +386,8 @@ adapters/
 src/
   BimBridge.Host/               # neutral connector transport/lifecycle
   BimBridge.Revit/              # shared Revit host plus runtime/API variants
-  BimBridge.AutoCAD*/           # shared AutoCAD host plus runtime/API variants
+  BimBridge.AutoCAD/            # shared AutoCAD host plus runtime/API variants
+  BimBridge.AutoCAD2024/        # legacy build/package compatibility shim only
 eng/                            # single Autodesk matrix, build, certification
 tests/
   protocol/ runtime/ providers/ hosts/ adapters/ live/
@@ -450,6 +452,31 @@ Official references:
 - [Autodesk 2025/2026 product-line .NET 10 servicing update](https://blog.autodesk.io/autodesk-desktop-products-2025-2026-net-10-updates/)
 - [Revit 2027 migration to .NET 10 and API changes](https://help.autodesk.com/view/RVT/2027/ENU/?guid=f7165618-24c9-4160-a7a4-09979fe4a981)
 
+## AutoCAD runtime matrix
+
+| AutoCAD release/API line | Target framework | Runtime family | Dynamic compiler | Bundle series |
+| --- | --- | --- | --- | --- |
+| 2024 / 24.3 | `net48` | `netfx` | CodeDOM | `R24.3` |
+| 2025 before its announced .NET 10 servicing migration | `net8.0-windows` | `modern` | host-shipped Roslyn | `R25.0` |
+| 2025 after its announced .NET 10 servicing migration | `net10.0-windows` | `modern` | host-shipped Roslyn | `R25.0` |
+| 2026 before 2026.1.2 | `net8.0-windows` | `modern` | host-shipped Roslyn | `R25.1` |
+| 2026.1.2 and later | `net10.0-windows` | `modern` | host-shipped Roslyn | `R25.1` |
+| 2027 | `net10.0-windows` | `modern` | host-shipped Roslyn | `R26.0` |
+
+AutoCAD 2025 and 2026 resolve the installed runtime from
+`acdbmgd.runtimeconfig.json` and validate it against their matrix allow-list.
+AutoCAD 2027 is fixed to .NET 10 and verifies that installed metadata agrees.
+The 2026.1.2 update on the current development machine already reports
+`net10.0`; its adapter therefore builds for `net10.0-windows` rather than
+guessing from the release year. Modern AutoCAD already ships the matching
+Roslyn assemblies inside the host, so each exact adapter references those
+assemblies without copying a competing compiler version into the bundle.
+
+Official references:
+
+- [AutoCAD managed .NET compatibility](https://help.autodesk.com/cloudhelp/2027/ENU/AutoCAD-Customization/files/GUID-A6C680F2-DE2E-418A-A182-E4884073338A.htm)
+- [Autodesk 2025/2026 product-line .NET 10 servicing update](https://blog.autodesk.io/autodesk-desktop-products-2025-2026-net-10-updates/)
+
 ## Single version matrix
 
 The repository contains one machine-readable MSBuild matrix at
@@ -478,9 +505,11 @@ also derive version behavior from the matrix. They must not maintain parallel
 hard-coded lists of years or assume that one release year always maps to one
 runtime artifact.
 
-The matrix is named for Autodesk rather than Revit deliberately. When AutoCAD
-multi-version extraction begins, extend this same source with product-qualified
-entries and shared fields; do not introduce an AutoCAD year list beside it. The
+The matrix is named for Autodesk rather than Revit deliberately. AutoCAD
+multi-version entries now live in this same source with product-qualified
+properties for target/runtime resolution, supported target frameworks, assembly
+identity, bundle series, dynamic compiler, support status, and certification;
+no separate AutoCAD year list is allowed. The
 long-term support key is `(product, release, resolved API/runtime variant)`, not
 just a four-digit year. Certification state attaches to that exact key. Build
 scripts may expose product-specific views of the matrix, but those views are
@@ -519,6 +548,28 @@ consumes the neutral matrix-built output instead. The shim imports the neutral
 adapter properties and contains no Revit business source; remove it with the
 legacy installer binding, never copy it for newer releases.
 
+## Shared AutoCAD implementation
+
+All AutoCAD product behavior lives under `src/BimBridge.AutoCAD`. The shared
+implementation owns extension startup and shutdown, connector registration,
+active-document and selection reads, document locking, native transactions,
+rollback evidence, dynamic-code execution, and exact adapter identity checks.
+The same project is evaluated once per resolved matrix entry and emits
+`BimBridge.AutoCAD<year>.dll` into a version/runtime-specific output directory.
+
+Per-release variation is limited to the exact installed managed API references,
+target framework/runtime family, assembly metadata, Autodesk bundle series, and
+a bounded compatibility mapping for observed API release identifiers. The
+current 2024 through 2027 APIs require no copied product implementation.
+`src/BimBridge.AutoCAD2024` is a legacy build/package input shim that imports the
+shared adapter properties and contains no C# business source; it must not be
+copied for later years.
+
+One generated `BIM Bridge.bundle` may contain several certified variants. Each
+matrix-derived component has an exact `SeriesMin`/`SeriesMax` and loads its DLL
+and private dependencies from a release-specific subdirectory. Pending or
+experimental entries are never included merely because the product is present.
+
 ## Dynamic code compilation
 
 The connector exposes separate read and write fallback tools whose C# method
@@ -538,6 +589,11 @@ later be evaluated as an alternate runtime-family implementation for improved
 diagnostics or analysis, but only behind `IRevitCodeCompiler` and only after
 load/dependency/security tests. Upper layers must never distinguish CodeDOM
 from Roslyn.
+
+AutoCAD uses the same compiler-interface rule inside its own product boundary:
+2024 retains CodeDOM, while 2025 and later compile through the Roslyn version
+shipped by the exact AutoCAD host. Revit and AutoCAD do not share Autodesk API
+code or transaction implementations.
 
 Generated code receives the documented Autodesk context variables and runs with
 the Autodesk process and user's OS permissions. A `read` mode expresses query
@@ -619,8 +675,8 @@ file creation only beneath
 structured providers first, then performs all Revit interaction through the
 version-independent MCP tools and an exact connector instance ID.
 
-`eng/Run-AutoCADLiveAcceptance.ps1 -Version 2024` is the current AutoCAD
-baseline entry point. With `-IsolateCurrentUserPlugins` it temporarily moves
+`eng/Run-AutoCADLiveAcceptance.ps1 -Version <year>` is the matrix-driven AutoCAD
+certification entry point. With `-IsolateCurrentUserPlugins` it temporarily moves
 only the installed current-user `BIM Bridge.bundle`, loads the exact signed test
 adapter with a generated AutoCAD script, and restores the production bundle in
 `finally`. Its external driver performs exact MCP routing, selection, read,
@@ -764,19 +820,25 @@ decision and the version 2 contract plus Codex adapter are certified.
 
 ### Phase 7: generalize AutoCAD versions
 
+**Status: complete for AutoCAD 2024-2027.** AutoCAD 2024 has been extracted into
+the shared, matrix-driven product host. Exact builds and unattended live
+acceptance pass for AutoCAD 2024 (`net48`), 2025 (`net8.0-windows`), 2026
+(`net10.0-windows`), and 2027 (`net10.0-windows`).
+
 - convert AutoCAD 2024 into a shared AutoCAD host plus matrix-driven variants;
 - reuse the same contract, runtime, capability, policy, and certification
   layers; do not reuse Revit transaction code or API compatibility shims.
 
 ### Phase 8: redesign packaging and installation
 
-**Status: in progress for a Codex-only development alpha.** The lightweight
+**Status: published Codex-only alpha preview; stable cross-machine gate pending.** The lightweight
 `bim-bridge` plugin and Skill bootstrap are separated from the transactional
 Windows Host installer. The installer uses the Autodesk matrix, deploys the
-four certified Revit variants and AutoCAD 2024 when present, records hashes,
+four certified Revit and four certified AutoCAD variants when present, records hashes,
 refuses loaded Autodesk processes, migrates known legacy-owned components, and
-rolls back files and MCP registrations on failure. Publishing a signed release
-archive and adapting other agents remain separate future gates.
+rolls back files and MCP registrations on failure. The immutable preview archive
+is pinned by SHA-256 in a detached-signature-verified manifest. Stable promotion
+and adapting other agents remain separate future gates.
 
 - package the certified runtime, selected agent adapters, providers, and exact
   host variants;
@@ -786,13 +848,12 @@ archive and adapting other agents remain separate future gates.
 
 ## Installer boundary
 
-The packaging phase is active for the Codex-only development alpha. The Codex
+The packaging phase is active for the Codex-only alpha preview. The Codex
 plugin is deliberately lightweight: it ships the Skill, a read-only status
 probe, and an approved bootstrap wrapper, but does not own or auto-start an MCP
 server. The Windows Host installer separately deploys the agent-independent
 runtime and matching certified Autodesk connectors, then registers the external
-`bim-bridge-local` MCP. Later AutoCAD variants remain deferred. The installer
-consumes certified artifacts and the version matrix; it does not decide
+`bim-bridge-local` MCP. The installer consumes certified artifacts and the version matrix; it does not decide
 compatibility itself.
 
 The public GitHub repository is a Codex Repo Marketplace, a WorkBuddy Plugin
@@ -802,9 +863,9 @@ own lightweight adapter. It does not authorize another agent's adapter or native
 Host mutation. After the platform's required reload or restart boundary, the
 installed Skill performs the same bundled read-only status check and presents
 the exact Host plan before obtaining current-task consent. For ordinary remote
-users, an unpublished Host release must remain fail-closed; an agent must not
-substitute a cloned development source, source build, unpinned download, or
-standalone Skill installation for the signed release path.
+users, an unavailable or signature-invalid Host release must remain fail-closed;
+an agent must not substitute a cloned development source, source build, unpinned
+download, or standalone Skill installation for the signed release path.
 
 Install state hashes the launcher, MCP/runtime source, Autodesk adapters and
 manifests, and the critical private-Python bootstrap binaries. It does not hash
@@ -826,6 +887,11 @@ Its required behavior is:
 - restore every previous target if any version fails;
 - record installed files and hashes per product/version;
 - aggregate restart requirements so one final restart is sufficient.
+
+Release-package validation uses the installer's read-only `-ValidateOnly` path.
+It resolves only Autodesk products actually installed on the validation machine
+and verifies their exact packaged connector, manifest, and private-Python inputs
+without creating staging directories or changing MCP registration.
 
 For the legacy migration, known installer-owned paths and the
 `aec-codex-local` registration may be removed inside the same rollback boundary.

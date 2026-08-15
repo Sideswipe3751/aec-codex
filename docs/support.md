@@ -1,8 +1,9 @@
 # BIM Bridge support
 
-BIM Bridge currently has live acceptance evidence for AutoCAD 2024 and Revit
-2024, 2025, 2026, and 2027 on Windows x64. Release packaging remains frozen
-while the runtime architecture and later AutoCAD version matrix are completed.
+BIM Bridge has live acceptance evidence for AutoCAD 2024, 2025, 2026, and 2027
+and Revit 2024, 2025, 2026, and 2027 on Windows x64. Each AutoCAD connector
+passed exact-version routing, read, write, readback, rollback, cleanup, and clean
+shutdown checks. Release packaging is active for this certified scope.
 
 Before reporting a problem, start a BIM Bridge task and ask it to run the
 read-only host status check. Do not post drawings, models, access tokens,

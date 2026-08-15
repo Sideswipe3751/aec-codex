@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-alpha.1 - 2026-08-15
+
+- Added one shared, matrix-driven AutoCAD host for certified AutoCAD 2024-2027.
+- Added exact modern-runtime and Roslyn resolution for AutoCAD 2025-2027.
+- Added unattended exact-version AutoCAD acceptance and release-package tests.
+- Added a signed preview Host manifest, immutable Windows x64 archive packaging,
+  and read-only package validation.
+
 All notable changes to BIM Bridge are documented in this file. Historical
 release entries retain the AEC Codex name used by those published artifacts.
 

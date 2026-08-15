@@ -21,7 +21,8 @@ if (-not $UserApproved) {
 $pluginRoot = Split-Path -Parent $PSScriptRoot
 if (-not $ManifestPath) { $ManifestPath = Join-Path $pluginRoot 'release-manifest.json' }
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { throw "Release manifest is missing: $ManifestPath" }
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'Test-BimBridgeReleaseManifest.ps1')
+$manifest = Read-VerifiedBimBridgeReleaseManifest $ManifestPath
 if ($manifest.schemaVersion -ne 2) { throw "Unsupported BIM Bridge release manifest schema: $($manifest.schemaVersion)" }
 if (-not $LocalSourceRoot -and $manifest.PSObject.Properties['developmentSourceRoot'] -and $manifest.developmentSourceRoot) {
     $LocalSourceRoot = [string]$manifest.developmentSourceRoot

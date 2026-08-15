@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="AutoCAD" Name="BIM Bridge" Description="BIM Bridge local AutoCAD connector" AppVersion="{{APP_VERSION}}" ProductCode="{A603F718-7528-419F-8FE8-73914142883C}">
+  <CompanyDetails Name="BIM Bridge" />
+{{COMPONENTS}}
+</ApplicationPackage>

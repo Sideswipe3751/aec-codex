@@ -74,14 +74,66 @@
       </PropertyGroup>
     </When>
   </Choose>
-  <ItemGroup>
-    <AutoCADRelease Include="2024">
-      <AssemblyName>BimBridge.AutoCAD2024</AssemblyName>
-      <TargetFramework>net48</TargetFramework>
-      <RuntimeFamily>netfx</RuntimeFamily>
-      <SupportStatus>implemented</SupportStatus>
-      <CertificationStatus>certified</CertificationStatus>
-      <InstallSubdirectory>Autodesk\AutoCAD 2024</InstallSubdirectory>
-    </AutoCADRelease>
-  </ItemGroup>
+  <Choose>
+    <When Condition="'$(AutoCADVersion)' == '2024'">
+      <PropertyGroup>
+        <AutoCADReleaseYear>2024</AutoCADReleaseYear>
+        <AutoCADAssemblyName>BimBridge.AutoCAD2024</AutoCADAssemblyName>
+        <AutoCADTargetFramework>net48</AutoCADTargetFramework>
+        <AutoCADSupportedTargetFrameworks>net48</AutoCADSupportedTargetFrameworks>
+        <AutoCADRuntimeFamily>netfx</AutoCADRuntimeFamily>
+        <AutoCADRuntimeResolution>fixed</AutoCADRuntimeResolution>
+        <AutoCADDynamicCompiler>codedom</AutoCADDynamicCompiler>
+        <AutoCADSeries>R24.3</AutoCADSeries>
+        <AutoCADSupportStatus>implemented</AutoCADSupportStatus>
+        <AutoCADCertificationStatus>certified</AutoCADCertificationStatus>
+        <AutoCADInstallSubdirectory>Autodesk\AutoCAD 2024</AutoCADInstallSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(AutoCADVersion)' == '2025'">
+      <PropertyGroup>
+        <AutoCADReleaseYear>2025</AutoCADReleaseYear>
+        <AutoCADAssemblyName>BimBridge.AutoCAD2025</AutoCADAssemblyName>
+        <AutoCADTargetFramework>net8.0-windows</AutoCADTargetFramework>
+        <AutoCADSupportedTargetFrameworks>net8.0-windows;net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
+        <AutoCADRuntimeResolution>installed-api-runtime</AutoCADRuntimeResolution>
+        <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>
+        <AutoCADSeries>R25.0</AutoCADSeries>
+        <AutoCADSupportStatus>implemented</AutoCADSupportStatus>
+        <AutoCADCertificationStatus>certified</AutoCADCertificationStatus>
+        <AutoCADInstallSubdirectory>Autodesk\AutoCAD 2025</AutoCADInstallSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(AutoCADVersion)' == '2026'">
+      <PropertyGroup>
+        <AutoCADReleaseYear>2026</AutoCADReleaseYear>
+        <AutoCADAssemblyName>BimBridge.AutoCAD2026</AutoCADAssemblyName>
+        <AutoCADTargetFramework>net8.0-windows</AutoCADTargetFramework>
+        <AutoCADSupportedTargetFrameworks>net8.0-windows;net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
+        <AutoCADRuntimeResolution>installed-api-runtime</AutoCADRuntimeResolution>
+        <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>
+        <AutoCADSeries>R25.1</AutoCADSeries>
+        <AutoCADSupportStatus>implemented</AutoCADSupportStatus>
+        <AutoCADCertificationStatus>certified</AutoCADCertificationStatus>
+        <AutoCADInstallSubdirectory>Autodesk\AutoCAD 2026</AutoCADInstallSubdirectory>
+      </PropertyGroup>
+    </When>
+    <When Condition="'$(AutoCADVersion)' == '2027'">
+      <PropertyGroup>
+        <AutoCADReleaseYear>2027</AutoCADReleaseYear>
+        <AutoCADAssemblyName>BimBridge.AutoCAD2027</AutoCADAssemblyName>
+        <AutoCADTargetFramework>net10.0-windows</AutoCADTargetFramework>
+        <AutoCADSupportedTargetFrameworks>net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
+        <AutoCADRuntimeResolution>fixed</AutoCADRuntimeResolution>
+        <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>
+        <AutoCADSeries>R26.0</AutoCADSeries>
+        <AutoCADSupportStatus>implemented</AutoCADSupportStatus>
+        <AutoCADCertificationStatus>certified</AutoCADCertificationStatus>
+        <AutoCADInstallSubdirectory>Autodesk\AutoCAD 2027</AutoCADInstallSubdirectory>
+      </PropertyGroup>
+    </When>
+  </Choose>
 </Project>

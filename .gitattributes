@@ -1,0 +1,3 @@
+plugins/bim-bridge/release-manifest.json text eol=lf
+plugins/bim-bridge/release-manifest.json.sig text eol=lf
+plugins/bim-bridge/assets/release-channel.cer.b64 text eol=lf

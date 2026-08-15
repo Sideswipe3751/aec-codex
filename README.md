@@ -80,7 +80,10 @@ experimental adapter reports an unavailable Host and stops. See
 
 | Product | Version | Runtime | Status |
 | --- | --- | --- | --- |
-| AutoCAD | 2024 / R24.3 | .NET Framework 4.8 | Release candidate; live structured-provider and rollback testing completed |
+| AutoCAD | 2024 / R24.3 | .NET Framework 4.8 | Unattended live acceptance passed |
+| AutoCAD | 2025 / R25.0 | .NET 8 | Unattended live acceptance passed |
+| AutoCAD | 2026 / R25.1 | .NET 10 | Unattended live acceptance passed |
+| AutoCAD | 2027 / R26.0 | .NET 10 | Unattended live acceptance passed |
 | Revit | 2024.1 | .NET Framework 4.8 | Unattended live acceptance passed |
 | Revit | 2025.4 | .NET 8 | Unattended live acceptance passed |
 | Revit | 2026.5 | .NET 10 | Unattended live acceptance passed |
@@ -121,20 +124,20 @@ Prerequisites:
 
 - Windows x64
 - Codex, Tencent WorkBuddy, or Kimi Code for the matching agent adapter
-- AutoCAD 2024 and/or one of the certified Revit releases listed above
+- AutoCAD 2024–2027 and/or one of the certified Revit releases listed above
 
-BIM Bridge 2.0 is not yet a signed public Host release. The lightweight agent
-plugins can be installed independently from this repository. For Codex:
+BIM Bridge 2.0.0-alpha.1 is available as a signed preview Host release. The
+lightweight agent plugin remains separate from the native Host. For Codex:
 
 ```powershell
 codex plugin marketplace add Sideswipe3751/bim-bridge --ref main
 codex plugin add bim-bridge@bim-bridge
 ```
 
-Restart Codex and start a new task about BIM Bridge. For ordinary remote users,
-Codex must not build or install the Host from a cloned development source. Host
-setup remains fail-closed until `release-manifest.json` points to a published,
-signed release archive with its exact SHA-256.
+Restart Codex and start a new task about BIM Bridge. The installed Skill verifies
+the detached release-manifest signature and pinned Host SHA-256 before offering
+installation. Ordinary remote users must not substitute a source build or an
+unpinned download.
 
 Repository contributors may instead clone the repository and add its root as a
 local marketplace. That development-only path is documented in
@@ -197,6 +200,7 @@ Run the dependency-free MCP tests and shared bridge tests:
 python -m unittest discover -s tests\mcp -p "test_*.py"
 dotnet run --project tests\BimBridge.Host.Tests -c Release -f net10.0
 & .\tests\architecture\Test-RevitVersionArchitecture.ps1
+& .\tests\architecture\Test-AutoCADVersionArchitecture.ps1
 & .\tests\adapters\workbuddy\Test-WorkBuddyAdapter.ps1
 & .\tests\adapters\kimi\Test-KimiAdapter.ps1
 ```
@@ -212,10 +216,10 @@ The Autodesk 2024 manual acceptance sequence is documented in
 
 ## Release status
 
-The current repository state is a local development alpha. Publishing remains
-blocked until the BIM Bridge host archive, checksum, signing, and cross-machine
-installation gates pass. The plugin release manifest intentionally remains
-`published: false` until that work is complete.
+The current repository state is a published alpha preview. The immutable Windows
+x64 Host archive, SHA-256, and detached release-manifest signature are available
+from the GitHub prerelease. Stable promotion remains gated on independent
+cross-machine installation and upgrade evidence.
 
 ## Contributing and security
 

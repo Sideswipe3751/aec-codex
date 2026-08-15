@@ -14,7 +14,9 @@ public sealed class BimBridgeExtension : IExtensionApplication
     {
         try
         {
-            _executor = new AutoCADConnectorExecutor();
+            var actualVersion = AutoCADApiCompatibility.GetRelease(Application.Version);
+            AutoCADAdapterIdentity.EnsureCompatible(actualVersion);
+            _executor = new AutoCADConnectorExecutor(actualVersion);
             _server = new ConnectorServer(_executor);
             _executor.Attach(_server);
             _server.Start();

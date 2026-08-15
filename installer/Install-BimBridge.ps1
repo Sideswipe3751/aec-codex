@@ -6,6 +6,7 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
     [switch]$SkipBuild,
+    [switch]$ValidateOnly,
     [switch]$MigrateLegacy
 )
 
@@ -292,26 +293,54 @@ if ($Action -eq 'Uninstall') {
 $revitEntries = @(Get-RevitMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
 $resolvedRevit = New-Object System.Collections.ArrayList
 foreach ($entry in $revitEntries) {
+    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$entry.InstallSubdirectory)) 'Revit.exe'
+    if (-not (Test-Path -LiteralPath $candidateExecutable -PathType Leaf)) { continue }
     try {
         $resolved = Resolve-RevitMatrixEntry $entry
-        if (Test-Path -LiteralPath $resolved.RevitExecutable -PathType Leaf) { [void]$resolvedRevit.Add($resolved) }
+        [void]$resolvedRevit.Add($resolved)
     } catch {
         throw "Installed Revit $($entry.Include) could not be resolved for deployment: $($_.Exception.Message)"
     }
 }
 $autoCADEntries = @(Get-AutoCADMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
-$resolvedAutoCAD = @($autoCADEntries | ForEach-Object { Resolve-AutoCADMatrixEntry $_ } | Where-Object { Test-Path -LiteralPath $_.Executable -PathType Leaf })
+$resolvedAutoCAD = @($autoCADEntries | Where-Object {
+    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$_.InstallSubdirectory)) 'acad.exe'
+    Test-Path -LiteralPath $candidateExecutable -PathType Leaf
+} | ForEach-Object { Resolve-AutoCADMatrixEntry $_ })
 
 if (-not $SkipBuild) {
     if ($resolvedRevit.Count -gt 0) {
         & (Join-Path $SourceRoot 'eng\Build-RevitAdapters.ps1') -Version @($resolvedRevit | ForEach-Object { $_.Include }) -Configuration $Configuration
         if ($LASTEXITCODE -ne 0) { throw 'One or more Revit adapter builds failed.' }
     }
-    foreach ($autoCAD in $resolvedAutoCAD) {
-        $project = Join-Path $SourceRoot ('src\BimBridge.AutoCAD' + $autoCAD.Include + '\BimBridge.AutoCAD' + $autoCAD.Include + '.csproj')
-        & dotnet build $project -c $Configuration --nologo -v:minimal -clp:ErrorsOnly
-        if ($LASTEXITCODE -ne 0) { throw "AutoCAD $($autoCAD.Include) adapter build failed." }
+    if ($resolvedAutoCAD.Count -gt 0) {
+        & (Join-Path $SourceRoot 'eng\Build-AutoCADAdapters.ps1') -Version @($resolvedAutoCAD | ForEach-Object { $_.Include }) -Configuration $Configuration
+        if ($LASTEXITCODE -ne 0) { throw 'One or more AutoCAD adapter builds failed.' }
     }
+}
+
+if ($ValidateOnly) {
+    $pythonPath = Join-Path $SourceRoot 'runtime\python\python.exe'
+    if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) { throw 'The release package has no private Python runtime.' }
+    foreach ($revit in $resolvedRevit) {
+        $source = Join-Path $SourceRoot ("src\BimBridge.Revit\bin\$Configuration\$($revit.Include)\$($revit.TargetFramework)")
+        foreach ($required in @("$($revit.AssemblyName).dll",[string]$revit.ManifestName)) {
+            if (-not (Test-Path -LiteralPath (Join-Path $source $required) -PathType Leaf)) { throw "Revit $($revit.Include) release artifact is missing: $required" }
+        }
+    }
+    foreach ($autoCAD in $resolvedAutoCAD) {
+        $source = Join-Path $SourceRoot ("src\BimBridge.AutoCAD\bin\$Configuration\$($autoCAD.Include)\$($autoCAD.TargetFramework)")
+        if (-not (Test-Path -LiteralPath (Join-Path $source "$($autoCAD.AssemblyName).dll") -PathType Leaf)) {
+            throw "AutoCAD $($autoCAD.Include) release artifact is missing."
+        }
+    }
+    [ordered]@{
+        status='validated'; version=$basePluginVersion
+        revit=@($resolvedRevit | ForEach-Object { [string]$_.Include })
+        autocad=@($resolvedAutoCAD | ForEach-Object { [string]$_.Include })
+        privatePython=$pythonPath
+    } | ConvertTo-Json -Depth 5
+    return
 }
 
 New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
@@ -369,13 +398,17 @@ try {
 
     $stagedAutoCADBundle = $null
     if ($resolvedAutoCAD.Count -gt 0) {
-        $autoCAD = $resolvedAutoCAD[0]
-        $source = Join-Path $SourceRoot ("src\BimBridge.AutoCAD$($autoCAD.Include)\bin\$Configuration\$($autoCAD.TargetFramework)")
         $stagedAutoCADBundle = Join-Path $stagingRoot 'BIM Bridge.bundle'
-        New-Item -ItemType Directory -Force -Path (Join-Path $stagedAutoCADBundle 'Contents\Windows') | Out-Null
-        Copy-Item -Path (Join-Path $source '*') -Destination (Join-Path $stagedAutoCADBundle 'Contents\Windows') -Recurse -Force
-        $package = Get-Content -LiteralPath (Join-Path $SourceRoot 'src\BimBridge.AutoCAD2024\PackageContents.xml') -Raw
-        $package = $package -replace 'AppVersion="[^"]+"', 'AppVersion="2.0.0"'
+        foreach ($autoCAD in $resolvedAutoCAD) {
+            $source = Join-Path $SourceRoot ("src\BimBridge.AutoCAD\bin\$Configuration\$($autoCAD.Include)\$($autoCAD.TargetFramework)")
+            $assemblyPath = Join-Path $source "$($autoCAD.AssemblyName).dll"
+            if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) { throw "AutoCAD adapter output is missing: $assemblyPath" }
+            $stagedVersion = Join-Path $stagedAutoCADBundle ("Contents\Windows\$($autoCAD.Include)")
+            New-Item -ItemType Directory -Force -Path $stagedVersion | Out-Null
+            Copy-Item -Path (Join-Path $source '*') -Destination $stagedVersion -Recurse -Force
+        }
+        $packageTemplate = Join-Path $SourceRoot 'src\BimBridge.AutoCAD\PackageContents.template.xml'
+        $package = New-AutoCADPackageContents $resolvedAutoCAD '2.0.0' $packageTemplate
         Write-Utf8NoBom (Join-Path $stagedAutoCADBundle 'PackageContents.xml') $package
     }
 

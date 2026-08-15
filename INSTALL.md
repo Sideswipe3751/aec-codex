@@ -88,11 +88,10 @@ Start a new Kimi session about BIM Bridge. Kimi loads only its own Skill and
 MCP declaration. Its experimental adapter reports a missing or unhealthy Host
 and stops; it does not install or repair native components.
 
-The current development manifest is deliberately unpublished. Until a signed
-Host archive and checksum are released, an external user can install the Codex
-Plugin but the Plugin must refuse remote Host installation. Do not bypass that
-gate by cloning the repository, setting a development source root, choosing an
-unverified `latest` download, or compiling from source.
+The signed `2.0.0-alpha.1` preview Host is published for Windows x64. The Codex
+Plugin verifies the detached release-manifest signature and exact archive
+SHA-256 before installation. Do not bypass those gates with a cloned source
+tree, an unverified `latest` download, or a source build.
 
 ## Contributor-only local development
 

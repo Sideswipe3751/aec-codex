@@ -66,13 +66,14 @@ try {
         Assert ($release.privatePythonVersion -eq '3.12.10') 'Private Python runtime version is not pinned.'
         Assert ($plugin.interface.defaultPrompt.Count -le 3) 'Plugin has more than three starter prompts.'
         Assert ($marketplace.plugins.Count -eq 1) 'Repository marketplace should contain one plugin.'
-        Assert ($marketplace.plugins[0].source.path -eq './plugins/aec-codex') 'Marketplace source path is invalid.'
+        Assert ($marketplace.plugins[0].name -eq 'bim-bridge') 'Repository marketplace must advertise the BIM Bridge plugin.'
+        Assert ($marketplace.plugins[0].source.path -eq './plugins/bim-bridge') 'Marketplace source path is invalid.'
         $serverText = Get-Content -LiteralPath (Join-Path $repoRoot 'plugins\aec-codex\mcp-server\aec_mcp_server.py') -Raw
         Assert ($serverText.Contains('SERVER_VERSION = "1.1.0-rc.3"')) 'MCP host version differs from plugin version.'
         $versionedFiles = @(
             'runtime\aec_runtime\providers.py',
             'src\BimBridge.Host\ConnectorContracts.cs',
-            'src\BimBridge.AutoCAD2024\AutoCADConnectorExecutor.cs',
+            'src\BimBridge.AutoCAD\AutoCADConnectorExecutor.cs',
             'src\BimBridge.Revit\RevitConnectorExecutor.cs'
         )
         foreach ($relativePath in $versionedFiles) {

@@ -25,7 +25,8 @@ function Assert-True([bool]$Condition, [string]$Message) {
 }
 
 [xml]$matrix = Get-Content -LiteralPath $matrixPath -Raw
-$entries = @($matrix.Project.Choose.When | ForEach-Object { $_.PropertyGroup })
+$entries = @($matrix.Project.Choose.When | ForEach-Object { $_.PropertyGroup } |
+    Where-Object { $_.PSObject.Properties['ReleaseYear'] })
 Assert-True ($entries.Count -gt 0) 'The Revit version matrix is empty.'
 
 $years = @($entries | ForEach-Object { [string]$_.ReleaseYear })

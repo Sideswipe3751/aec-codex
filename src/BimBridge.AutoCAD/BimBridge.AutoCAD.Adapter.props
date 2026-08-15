@@ -1,0 +1,59 @@
+<Project>
+  <Import Project="../../eng/Autodesk.Versions.props" />
+  <PropertyGroup>
+    <TargetFramework Condition="'$(AutoCADTargetFramework)' != ''">$(AutoCADTargetFramework)</TargetFramework>
+    <TargetFramework Condition="'$(AutoCADTargetFramework)' == ''">netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>BimBridge.AutoCAD</RootNamespace>
+    <AssemblyName>$(AutoCADAssemblyName)</AssemblyName>
+    <AutoCADInstallDir Condition="'$(AutoCADInstallDir)' == ''">C:\Program Files\Autodesk\AutoCAD $(AutoCADVersion)</AutoCADInstallDir>
+    <OutputPath Condition="'$(OutputPath)' == ''">bin\$(Configuration)\$(AutoCADVersion)\</OutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="AutoCADVersion" Value="$(AutoCADVersion)" />
+    <AssemblyMetadata Include="AutoCADRuntimeFamily" Value="$(AutoCADRuntimeFamily)" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\BimBridge.Host\BimBridge.Host.csproj" />
+    <PackageReference Condition="'$(AutoCADRuntimeFamily)' == 'netfx'" Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(AutoCADRuntimeFamily)' == 'netfx'">
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(AutoCADRuntimeFamily)' == 'modern'">
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+    <Reference Include="Microsoft.CodeAnalysis">
+      <HintPath>$(AutoCADInstallDir)\Microsoft.CodeAnalysis.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp">
+      <HintPath>$(AutoCADInstallDir)\Microsoft.CodeAnalysis.CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="AcCoreMgd">
+      <HintPath>$(AutoCADInstallDir)\AcCoreMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AcDbMgd">
+      <HintPath>$(AutoCADInstallDir)\AcDbMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AcMgd">
+      <HintPath>$(AutoCADInstallDir)\AcMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Compile Include="$(MSBuildThisFileDirectory)*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Runtime\NetFramework\RuntimeCodeCompiler.cs" Condition="'$(AutoCADRuntimeFamily)' == 'netfx'" />
+    <Compile Include="$(MSBuildThisFileDirectory)Runtime\Modern\RuntimeCodeCompiler.cs" Condition="'$(AutoCADRuntimeFamily)' == 'modern'" />
+  </ItemGroup>
+  <Target Name="ValidateAutoCADAdapterConfiguration" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(AutoCADVersion)' == ''" Text="AutoCADVersion is required. Use eng/Build-AutoCADAdapters.ps1." />
+    <Error Condition="'$(AutoCADAssemblyName)' == ''" Text="AutoCADVersion '$(AutoCADVersion)' is not declared in eng/Autodesk.Versions.props." />
+    <Error Condition="'$(AutoCADRuntimeFamily)' == ''" Text="AutoCADVersion '$(AutoCADVersion)' has no runtime family." />
+    <Error Condition="!Exists('$(AutoCADInstallDir)\AcCoreMgd.dll')" Text="AutoCAD $(AutoCADVersion) managed API was not found at $(AutoCADInstallDir). Set AutoCADInstallDir." />
+    <Error Condition="'$(AutoCADRuntimeFamily)' == 'modern' and !Exists('$(AutoCADInstallDir)\Microsoft.CodeAnalysis.CSharp.dll')" Text="AutoCAD $(AutoCADVersion) host Roslyn compiler was not found at $(AutoCADInstallDir)." />
+  </Target>
+</Project>

@@ -10,8 +10,10 @@ function Convert-RevitRuntimeTfmToTargetFramework([string]$RuntimeTfm, [string]$
 
 function Get-RevitMatrixEntries([string]$MatrixPath) {
     [xml]$matrix = Get-Content -LiteralPath $MatrixPath -Raw
-    @($matrix.Project.Choose.When | ForEach-Object {
-        $properties = $_.PropertyGroup
+    @($matrix.Project.Choose.When | ForEach-Object { $_.PropertyGroup } |
+        Where-Object { $_.PSObject.Properties['ReleaseYear'] -and -not [string]::IsNullOrWhiteSpace([string]$_.ReleaseYear) } |
+        ForEach-Object {
+        $properties = $_
         [pscustomobject]@{
             Include = [string]$properties.ReleaseYear
             AssemblyName = [string]$properties.RevitAssemblyName

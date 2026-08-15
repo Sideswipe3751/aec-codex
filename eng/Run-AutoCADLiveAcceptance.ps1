@@ -12,18 +12,19 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-if ($Version -ne '2024') {
-    throw 'The current AutoCAD live-acceptance baseline supports only AutoCAD 2024.'
-}
 if ($TimeoutSeconds -lt 60 -or $TimeoutSeconds -gt 1800) {
     throw 'TimeoutSeconds must be from 60 through 1800.'
 }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repositoryRoot 'src\BimBridge.AutoCAD2024\BimBridge.AutoCAD2024.csproj'
-$autocadExecutable = 'C:\Program Files\Autodesk\AutoCAD 2024\acad.exe'
-$outputDirectory = Join-Path $repositoryRoot "src\BimBridge.AutoCAD2024\bin\$Configuration\net48"
-$adapterAssembly = Join-Path $outputDirectory 'BimBridge.AutoCAD2024.dll'
+$matrixPath = Join-Path $PSScriptRoot 'Autodesk.Versions.props'
+. (Join-Path $PSScriptRoot 'AutodeskVersionMatrix.ps1')
+$releaseMatches = @(Get-AutoCADMatrixEntries $matrixPath | Where-Object { $_.Include -eq $Version })
+if ($releaseMatches.Count -ne 1) { throw "Unknown or duplicate AutoCAD release in matrix: $Version" }
+$release = Resolve-AutoCADMatrixEntry $releaseMatches[0]
+$autocadExecutable = $release.Executable
+$outputDirectory = Join-Path $repositoryRoot "src\BimBridge.AutoCAD\bin\$Configuration\$Version\$($release.TargetFramework)"
+$adapterAssembly = Join-Path $outputDirectory "$($release.AssemblyName).dll"
 $bridgeAssembly = Join-Path $outputDirectory 'BimBridge.Host.dll'
 $driver = Join-Path $repositoryRoot 'tests\live\autocad_live_driver.py'
 $mcpServer = Join-Path $repositoryRoot 'plugins\aec-codex\mcp-server\aec_mcp_server.py'
@@ -63,11 +64,11 @@ function Get-SignatureEvidence([string]$Path) {
 }
 
 if (-not (Test-Path -LiteralPath $autocadExecutable -PathType Leaf)) {
-    throw "AutoCAD 2024 executable was not found: $autocadExecutable"
+    throw "AutoCAD $Version executable was not found: $autocadExecutable"
 }
 
-& dotnet build $project -c $Configuration
-if ($LASTEXITCODE -ne 0) { throw 'AutoCAD adapter build failed.' }
+& (Join-Path $PSScriptRoot 'Build-AutoCADAdapters.ps1') -Version $Version -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { throw "AutoCAD $Version adapter build failed." }
 
 if (Test-Path -LiteralPath $developmentTrustState -PathType Leaf) {
     & $signingScript -Path @($adapterAssembly, $bridgeAssembly) | Out-Null
@@ -84,7 +85,9 @@ if ($BuildOnly) {
     [ordered]@{
         version = $Version
         status = 'built'
-        targetFramework = 'net48'
+        targetFramework = $release.TargetFramework
+        runtimeFamily = $release.RuntimeFamily
+        detectedRuntime = $release.DetectedRuntime
         autocadExecutable = $autocadExecutable
         adapterAssembly = $adapterAssembly
         bridgeAssembly = $bridgeAssembly
@@ -97,7 +100,7 @@ $sameVersionProcesses = @(Get-Process -Name 'acad' -ErrorAction SilentlyContinue
     try { [IO.Path]::GetFullPath($_.Path) -eq [IO.Path]::GetFullPath($autocadExecutable) } catch { $false }
 })
 if ($sameVersionProcesses.Count -gt 0) {
-    throw 'AutoCAD 2024 is already running; refusing to mix a certification run with an existing session.'
+    throw "AutoCAD $Version is already running; refusing to mix a certification run with an existing session."
 }
 
 $runId = [Guid]::NewGuid().ToString('N')

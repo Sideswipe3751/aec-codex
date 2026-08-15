@@ -19,10 +19,10 @@ internal sealed class AutoCADConnectorExecutor : IConnectorExecutor
     private ConnectorInfo _cachedInfo;
     private ConnectorServer? _server;
 
-    public AutoCADConnectorExecutor()
+    public AutoCADConnectorExecutor(string version)
     {
+        if (string.IsNullOrWhiteSpace(version)) throw new ArgumentException("Version is required", nameof(version));
         var processId = Process.GetCurrentProcess().Id;
-        var version = Application.Version.Major >= 25 ? "2025" : "2024";
         _instanceId = "autocad-" + version + "-" + processId;
         _cachedInfo = CreateInfo(version, processId, null);
     }

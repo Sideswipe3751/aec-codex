@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
 $subject = 'CN=BIM Bridge Revit Live Test Development'
+$legacySubject = 'CN=AEC Codex Revit Live Test Development'
 $stateDirectory = Join-Path $env:LOCALAPPDATA 'BIM Bridge\development-trust'
 $statePath = Join-Path $stateDirectory 'revit-live-test-signing.json'
 $publicCertificatePath = Join-Path $stateDirectory 'revit-live-test-signing.cer'
@@ -17,12 +18,19 @@ if (@(Get-Process Revit -ErrorAction SilentlyContinue).Count -gt 0) {
 }
 
 $minimumExpiry = [DateTime]::UtcNow.AddDays(30)
-$certificate = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+$trustedRoots = @{}
+Get-ChildItem Cert:\CurrentUser\Root | ForEach-Object { $trustedRoots[$_.Thumbprint] = $true }
+$trustedPublishers = @{}
+Get-ChildItem Cert:\CurrentUser\TrustedPublisher | ForEach-Object { $trustedPublishers[$_.Thumbprint] = $true }
+
+$candidates = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
     Where-Object {
-        $_.Subject -eq $subject -and
+        $_.Subject -in @($subject, $legacySubject) -and
         $_.HasPrivateKey -and
         $_.NotAfter.ToUniversalTime() -gt $minimumExpiry
-    } |
+    })
+$certificate = @($candidates |
+    Where-Object { $trustedRoots[$_.Thumbprint] -and $trustedPublishers[$_.Thumbprint] } |
     Sort-Object NotAfter -Descending |
     Select-Object -First 1)
 
@@ -49,10 +57,23 @@ if (-not (Test-Path -LiteralPath $stateDirectory -PathType Container)) {
 }
 
 Export-Certificate -Cert $certificate -FilePath $publicCertificatePath -Force | Out-Null
-foreach ($store in @('Cert:\CurrentUser\Root', 'Cert:\CurrentUser\TrustedPublisher')) {
-    $existing = Get-ChildItem -LiteralPath $store | Where-Object { $_.Thumbprint -eq $certificate.Thumbprint }
+foreach ($storeSpec in @(
+    [pscustomobject]@{ Path='Cert:\CurrentUser\Root'; Name='Root' },
+    [pscustomobject]@{ Path='Cert:\CurrentUser\TrustedPublisher'; Name='TrustedPublisher' }
+)) {
+    $existing = Get-ChildItem -LiteralPath $storeSpec.Path | Where-Object { $_.Thumbprint -eq $certificate.Thumbprint }
     if (-not $existing) {
-        Import-Certificate -FilePath $publicCertificatePath -CertStoreLocation $store | Out-Null
+        $publicCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($publicCertificatePath)
+        $targetStore = [Security.Cryptography.X509Certificates.X509Store]::new(
+            $storeSpec.Name,
+            [Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+        try {
+            $targetStore.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $targetStore.Add($publicCertificate)
+        } finally {
+            $targetStore.Close()
+            $publicCertificate.Dispose()
+        }
     }
 }
 

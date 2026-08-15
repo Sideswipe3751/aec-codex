@@ -8,6 +8,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pluginRoot = Join-Path $repoRoot 'plugins\bim-bridge'
 $statusScript = Join-Path $pluginRoot 'scripts\Get-BimBridgeHostStatus.ps1'
 $hostInstaller = Join-Path $pluginRoot 'scripts\Install-BimBridgeHost.ps1'
+$releaseVerifier = Join-Path $pluginRoot 'scripts\Test-BimBridgeReleaseManifest.ps1'
 $mainInstaller = Join-Path $repoRoot 'installer\Install-BimBridge.ps1'
 $launcher = Join-Path $repoRoot 'installer\Start-BimBridgeMcp.ps1'
 $matrixPath = Join-Path $repoRoot 'eng\Autodesk.Versions.props'
@@ -44,7 +45,7 @@ function Invoke-Status([string]$CaseRoot, [string]$CodexStart, [bool]$McpRegiste
 
 try {
     Invoke-Test 'new installer scripts parse on Windows PowerShell' {
-        foreach ($script in @($statusScript,$hostInstaller,$mainInstaller,$launcher)) {
+        foreach ($script in @($statusScript,$hostInstaller,$releaseVerifier,$mainInstaller,$launcher)) {
             [void][scriptblock]::Create((Get-Content -LiteralPath $script -Raw))
         }
     }
@@ -55,6 +56,20 @@ try {
         Assert ($plugin.name -eq 'bim-bridge') 'Plugin ID is not bim-bridge.'
         Assert (([string]$plugin.version -replace '\+.*$','') -eq [string]$release.version) 'Plugin and release versions differ.'
         Assert (-not $plugin.PSObject.Properties['mcpServers']) 'The lightweight bootstrap plugin must not own an MCP server.'
+    }
+
+    Invoke-Test 'release manifest has a valid detached signature and rejects tampering' {
+        . $releaseVerifier
+        $manifestPath = Join-Path $pluginRoot 'release-manifest.json'
+        $signaturePath = $manifestPath + '.sig'
+        $verified = Read-VerifiedBimBridgeReleaseManifest $manifestPath $signaturePath
+        Assert ([bool]$verified.published) 'The verified preview release is not published.'
+        $tamperedPath = Join-Path $temporaryRoot 'tampered-release-manifest.json'
+        $tamperedText = (Get-Content -LiteralPath $manifestPath -Raw).Replace('"channel": "preview"','"channel": "tampered"')
+        [IO.File]::WriteAllText($tamperedPath,$tamperedText,[Text.UTF8Encoding]::new($false))
+        $rejected = $false
+        try { Read-VerifiedBimBridgeReleaseManifest $tamperedPath $signaturePath | Out-Null } catch { $rejected = $true }
+        Assert $rejected 'A tampered release manifest passed detached-signature verification.'
     }
 
     Invoke-Test 'fresh machine reports not_installed' {
@@ -115,26 +130,32 @@ try {
 
     Invoke-Test 'matrix exposes only certified current baselines' {
         [xml]$matrix = Get-Content -LiteralPath $matrixPath -Raw
-        $revit = @($matrix.Project.Choose.When | ForEach-Object { $_.PropertyGroup } | Where-Object { $_.RevitCertificationStatus -eq 'certified' })
-        $autocad = @($matrix.Project.ItemGroup.AutoCADRelease | Where-Object { $_.CertificationStatus -eq 'certified' })
+        $revit = @($matrix.Project.Choose.When | ForEach-Object { $_.PropertyGroup } |
+            Where-Object { $_.PSObject.Properties['RevitCertificationStatus'] -and $_.RevitCertificationStatus -eq 'certified' })
+        . (Join-Path $repoRoot 'eng\AutodeskVersionMatrix.ps1')
+        $autoCADEntries = @(Get-AutoCADMatrixEntries $matrixPath)
+        $autocad = @($autoCADEntries | Where-Object { $_.CertificationStatus -eq 'certified' })
         Assert ($revit.Count -eq 4) "Expected four certified Revit entries, received $($revit.Count)."
-        Assert ($autocad.Count -eq 1 -and [string]$autocad[0].Include -eq '2024') 'AutoCAD 2024 certified matrix entry is missing.'
+        Assert ($autocad.Count -eq 4) "Expected four certified AutoCAD entries, received $($autocad.Count)."
+        Assert ($autoCADEntries.Count -eq 4) "Expected four AutoCAD matrix entries, received $($autoCADEntries.Count)."
         foreach ($entry in $revit) {
             Assert ([string]$entry.RevitAssemblyName -eq "BimBridge.Revit$([string]$entry.ReleaseYear)") "Revit $([string]$entry.ReleaseYear) DLL is not BIM Bridge branded."
         }
-        Assert ([string]$autocad[0].AssemblyName -eq 'BimBridge.AutoCAD2024') 'AutoCAD DLL is not BIM Bridge branded.'
+        foreach ($entry in $autocad) {
+            Assert ([string]$entry.AssemblyName -eq "BimBridge.AutoCAD$([string]$entry.Include)") "AutoCAD $([string]$entry.Include) DLL is not BIM Bridge branded."
+        }
     }
 
     Invoke-Test 'new Autodesk payload contains no AEC Codex assembly identities' {
         $revitProperties = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.Revit\BimBridge.Revit.Adapter.props') -Raw
         $hostProject = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.Host\BimBridge.Host.csproj') -Raw
-        $autoCADProject = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.AutoCAD2024\BimBridge.AutoCAD2024.csproj') -Raw
-        $autoCADPackage = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.AutoCAD2024\PackageContents.xml') -Raw
+        $autoCADProject = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.AutoCAD\BimBridge.AutoCAD.Adapter.props') -Raw
+        $autoCADPackage = Get-Content -LiteralPath (Join-Path $repoRoot 'src\BimBridge.AutoCAD\PackageContents.template.xml') -Raw
         $installerText = Get-Content -LiteralPath $mainInstaller -Raw
         Assert ($revitProperties -match '<AssemblyName>\$\(RevitAssemblyName\)</AssemblyName>') 'Revit assembly identity does not come from the BIM Bridge matrix.'
         Assert ($hostProject -match '<AssemblyName>BimBridge\.Host</AssemblyName>') 'Host bridge DLL is not BIM Bridge branded.'
-        Assert ($autoCADProject -match '<AssemblyName>BimBridge\.AutoCAD2024</AssemblyName>') 'AutoCAD project DLL is not BIM Bridge branded.'
-        Assert ($autoCADPackage -match 'BimBridge\.AutoCAD2024\.dll') 'AutoCAD package still loads an AEC Codex DLL.'
+        Assert ($autoCADProject -match '<AssemblyName>\$\(AutoCADAssemblyName\)</AssemblyName>') 'AutoCAD assembly identity does not come from the BIM Bridge matrix.'
+        Assert ($autoCADPackage -match '\{\{COMPONENTS\}\}') 'AutoCAD package is not generated from matrix components.'
         Assert ($installerText -notmatch '"Aec\.Codex\.Revit\$\(\$revit\.Include\)\.dll"') 'BIM Bridge installer still expects an AEC Codex Revit DLL.'
     }
 
@@ -144,6 +165,24 @@ try {
         $resolved = Resolve-AutoCADMatrixEntry $entry (Join-Path $temporaryRoot 'matrix-program-files')
         Assert ($resolved.TargetFramework -eq 'net48') 'AutoCAD 2024 target framework was not resolved from the matrix.'
         Assert ($resolved.Executable -like '*Autodesk\AutoCAD 2024\acad.exe') 'AutoCAD executable path was not derived from the matrix.'
+    }
+
+    Invoke-Test 'AutoCAD runtime resolver follows installed API metadata' {
+        . (Join-Path $repoRoot 'eng\AutodeskVersionMatrix.ps1')
+        $programFiles = Join-Path $temporaryRoot 'autocad-runtime-program-files'
+        $install = Join-Path $programFiles 'Autodesk\AutoCAD 2026'
+        New-Item -ItemType Directory -Force -Path $install | Out-Null
+        [IO.File]::WriteAllText((Join-Path $install 'acdbmgd.runtimeconfig.json'), '{"runtimeOptions":{"tfm":"net10.0"}}', [Text.UTF8Encoding]::new($false))
+        $entry = @(Get-AutoCADMatrixEntries $matrixPath | Where-Object { $_.Include -eq '2026' })[0]
+        $resolved = Resolve-AutoCADMatrixEntry $entry $programFiles
+        Assert ($resolved.TargetFramework -eq 'net10.0-windows') 'AutoCAD 2026 installed .NET 10 runtime was not resolved.'
+        Assert ($resolved.DetectedRuntime -eq 'net10.0') 'AutoCAD 2026 runtime evidence was not retained.'
+    }
+
+    Invoke-Test 'installer detects installed Autodesk products before runtime resolution' {
+        $installerText = Get-Content -LiteralPath $mainInstaller -Raw
+        Assert ($installerText -match 'candidateExecutable.*Revit\.exe') 'Revit detection does not precede runtime resolution.'
+        Assert ($installerText -match 'candidateExecutable.*acad\.exe') 'AutoCAD detection does not precede runtime resolution.'
     }
 
     Invoke-Test 'migration preserves the legacy state root itself' {

@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
-  "channel": "development",
+  "channel": "preview",
   "version": "2.0.0-alpha.1",
-  "published": false,
-  "releaseZipUri": null,
-  "sha256": null,
+  "published": true,
+  "releaseZipUri": "https://github.com/Sideswipe3751/bim-bridge/releases/download/v2.0.0-alpha.1/bim-bridge-host-2.0.0-alpha.1-win-x64.zip",
+  "sha256": "2534a8b1f48cb7f285944de6ebe89b548e0cddc17841826badc658415955962c",
   "developmentSourceRoot": null,
   "platform": "windows-x64",
   "mcpRegistration": "bim-bridge-local",
   "supportedProducts": {
-    "autocad": ["2024"],
+    "autocad": ["2024", "2025", "2026", "2027"],
     "revit": ["2024", "2025", "2026", "2027"]
   },
   "installLocations": [
