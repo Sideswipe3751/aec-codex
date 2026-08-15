@@ -146,8 +146,17 @@ try {
         files = $outsideFiles
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $temporaryRoot 'install-state.json') -Encoding UTF8
     $outsideStderrPath = Join-Path $temporaryRoot 'outside-stderr.txt'
-    [void](& powershell.exe -NoLogo -NoProfile -NonInteractive -File $launcherScript -StateRoot $temporaryRoot 2> $outsideStderrPath)
-    $outsideExitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 promotes redirected native stderr to a
+        # NativeCommandError when the surrounding test uses Stop. The child
+        # process exit code and captured stderr are the assertions here.
+        $ErrorActionPreference = 'Continue'
+        [void](& powershell.exe -NoLogo -NoProfile -NonInteractive -File $launcherScript -StateRoot $temporaryRoot 2> $outsideStderrPath)
+        $outsideExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $outsideStderr = Get-Content -LiteralPath $outsideStderrPath -Raw
     if ($outsideExitCode -eq 0 -or $outsideStderr -notmatch 'outside the BIM Bridge Host root') {
         throw 'Kimi launcher did not reject a recorded launcher outside the neutral Host root.'
