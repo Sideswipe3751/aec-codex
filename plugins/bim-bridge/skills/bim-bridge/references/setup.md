@@ -15,6 +15,8 @@ Resolve the plugin root two directories above this skill directory, then run
 - detected AutoCAD and Revit versions;
 - which exact installed Autodesk runtime variants are compatible and which will
   be skipped;
+- current BIM Bridge 2.x and legacy compatibility descriptor directories and
+  their credential-free file evidence;
 - running Autodesk processes;
 - missing, changed, or outdated installed files;
 - the exact status and recommended next action.
@@ -76,6 +78,15 @@ executable and Autodesk API assembly.
 When installation succeeds, tell the user to close and reopen Codex, Revit,
 and AutoCAD, then start a new Codex task. In that new task, rerun the status
 script and proceed only when it reports `healthy`.
+
+For connector discovery diagnosis, use the status result's
+`connectorDiscovery.current` evidence. BIM Bridge 2.x writes descriptors under
+`%APPDATA%\BIM Bridge\instances`; `%APPDATA%\AEC Codex\instances` is only a
+legacy compatibility fallback. The status probe lists filenames, sizes, and
+timestamps but never reads or exposes descriptor bearer tokens. If Revit's
+journal reports `API_SUCCESS` after an assembly-reference warning, do not treat
+the warning alone as a startup failure; check current descriptor evidence and
+`%APPDATA%\BIM Bridge\connector-errors.log` first.
 
 ## Uninstall
 

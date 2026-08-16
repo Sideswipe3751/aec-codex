@@ -145,6 +145,28 @@ try {
         Assert $rejected 'An explicit custom product path without Revit.exe and RevitAPI.dll was accepted.'
     }
 
+    Invoke-Test 'status reports current and legacy descriptor file evidence without credentials' {
+        $caseRoot = Join-Path $temporaryRoot 'descriptor-evidence'
+        $currentDirectory = Join-Path $caseRoot 'roaming\BIM Bridge\instances'
+        $legacyDirectory = Join-Path $caseRoot 'roaming\AEC Codex\instances'
+        New-Item -ItemType Directory -Force -Path $currentDirectory,$legacyDirectory | Out-Null
+        [IO.File]::WriteAllText(
+            (Join-Path $currentDirectory 'revit-2024-10588.json'),
+            '{"instanceId":"revit-2024-10588","token":"must-not-leak"}',
+            [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText(
+            (Join-Path $legacyDirectory 'revit-2024-legacy.json'),
+            '{"token":"legacy-must-not-leak"}',
+            [Text.UTF8Encoding]::new($false))
+
+        $status = Invoke-Status $caseRoot
+        Assert ($status.connectorDiscovery.current.directory -eq $currentDirectory) 'Status reported the wrong BIM Bridge 2.x descriptor directory.'
+        Assert (@($status.connectorDiscovery.current.files | Where-Object name -eq 'revit-2024-10588.json').Count -eq 1) 'Status omitted the current descriptor filename.'
+        Assert (@($status.connectorDiscovery.legacy.files | Where-Object name -eq 'revit-2024-legacy.json').Count -eq 1) 'Status omitted legacy fallback evidence.'
+        $serialized = $status | ConvertTo-Json -Depth 12
+        Assert ($serialized -notmatch 'must-not-leak') 'Status exposed a connector bearer token while reporting descriptor evidence.'
+    }
+
     Invoke-Test 'audit-only state directory is not a partial installation' {
         $caseRoot = Join-Path $temporaryRoot 'audit-only'
         $journal = Join-Path $caseRoot 'local\BIM Bridge\journal'
@@ -165,7 +187,7 @@ try {
         $caseRoot = Join-Path $temporaryRoot 'old-schema'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
         New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
-        @{ schemaVersion=3; version='2.0.0-alpha.3' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
+        @{ schemaVersion=3; version='2.0.0-alpha.4' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
         $status = Invoke-Status $caseRoot
         Assert ($status.status -eq 'needs_repair') 'An unsupported state schema was accepted.'
     }
@@ -173,12 +195,12 @@ try {
     Invoke-Test 'restart comparison preserves UTC JSON timestamps' {
         $caseRoot = Join-Path $temporaryRoot 'restart-time'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
-        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.3\mcp-server\aec_mcp_server.py'
+        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.4\mcp-server\aec_mcp_server.py'
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installedFile) | Out-Null
         Set-Content -LiteralPath $installedFile -Value 'healthy' -Encoding UTF8
         $hash = (Get-FileHash -LiteralPath $installedFile -Algorithm SHA256).Hash.ToLowerInvariant()
         [ordered]@{
-            schemaVersion=4; version='2.0.0-alpha.3'; installedAtUtc='2026-08-11T20:00:00Z'
+            schemaVersion=4; version='2.0.0-alpha.4'; installedAtUtc='2026-08-11T20:00:00Z'
             restartRequired=$true; localMcpServer=$installedFile; python=$installedFile; launcher=$installedFile
             ownedPaths=@($installedFile); files=@([ordered]@{ path=$installedFile; sha256=$hash })
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8

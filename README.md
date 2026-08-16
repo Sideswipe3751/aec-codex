@@ -126,7 +126,7 @@ Prerequisites:
 - Codex, Tencent WorkBuddy, or Kimi Code for the matching agent adapter
 - AutoCAD 2024–2027 and/or one of the certified Revit releases listed above
 
-BIM Bridge 2.0.0-alpha.3 is available as a signed preview Host release. The
+BIM Bridge 2.0.0-alpha.4 is available as a signed preview Host release. The
 lightweight agent plugin remains separate from the native Host. For Codex:
 
 ```powershell

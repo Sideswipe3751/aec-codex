@@ -35,7 +35,7 @@ codex plugin add bim-bridge@bim-bridge
 
 Marketplace upgrade refreshes the repository snapshot; removing and adding the
 Plugin replaces the immutable installed cache. Confirm that the subsequent
-read-only status reports target version `2.0.0-alpha.3` before approving Host
+read-only status reports target version `2.0.0-alpha.4` before approving Host
 installation.
 
 After the Plugin command succeeds:
@@ -94,7 +94,7 @@ Start a new Kimi session about BIM Bridge. Kimi loads only its own Skill and
 MCP declaration. Its experimental adapter reports a missing or unhealthy Host
 and stops; it does not install or repair native components.
 
-The signed `2.0.0-alpha.3` preview Host is published for Windows x64. The Codex
+The signed `2.0.0-alpha.4` preview Host is published for Windows x64. The Codex
 Plugin verifies the detached release-manifest signature and exact archive
 SHA-256 before installation. Do not bypass those gates with a cloned source
 tree, an unverified `latest` download, or a source build.

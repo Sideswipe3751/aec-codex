@@ -3,7 +3,7 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <Version>2.0.0-alpha.3</Version>
+    <Version>2.0.0-alpha.4</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Product>BIM Bridge</Product>

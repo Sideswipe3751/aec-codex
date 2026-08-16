@@ -35,6 +35,30 @@ function ConvertTo-UtcDateTime($Value) {
     ).ToUniversalTime()
 }
 
+function Get-DescriptorDirectoryEvidence([string]$Directory) {
+    $files = @()
+    if (Test-Path -LiteralPath $Directory -PathType Container) {
+        $files = @(Get-ChildItem -LiteralPath $Directory -Filter '*.json' -File -ErrorAction SilentlyContinue | ForEach-Object {
+            [ordered]@{
+                name = $_.Name
+                length = [long]$_.Length
+                lastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o')
+            }
+        })
+    }
+    [ordered]@{ directory=$Directory; exists=(Test-Path -LiteralPath $Directory -PathType Container); files=$files }
+}
+
+function Get-FileEvidence([string]$Path) {
+    $file = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+    [ordered]@{
+        path=$Path
+        exists=[bool]$file
+        length=if ($file) { [long]$file.Length } else { $null }
+        lastWriteTimeUtc=if ($file) { $file.LastWriteTimeUtc.ToString('o') } else { $null }
+    }
+}
+
 function Find-CodexCli {
     $command = Get-Command codex -ErrorAction SilentlyContinue
     if ($command) {
@@ -158,6 +182,13 @@ foreach ($process in @(Get-Process -Name Revit,acad -ErrorAction SilentlyContinu
     $running += [ordered]@{ name=$process.ProcessName; processId=$process.Id; title=$process.MainWindowTitle }
 }
 
+$connectorDiscovery = [ordered]@{
+    current = Get-DescriptorDirectoryEvidence (Join-Path $RoamingRoot 'BIM Bridge\instances')
+    legacy = Get-DescriptorDirectoryEvidence (Join-Path $RoamingRoot 'AEC Codex\instances')
+    startupErrors = Get-FileEvidence (Join-Path $RoamingRoot 'BIM Bridge\connector-errors.log')
+    note = 'BIM Bridge 2.x writes descriptors to the current directory. The legacy directory is read only as a compatibility fallback.'
+}
+
 $statePath = Join-Path $StateRoot 'install-state.json'
 $state = $null
 $stateError = $null
@@ -269,6 +300,7 @@ if (-not $state) {
     codexMcp = [ordered]@{ name=$mcpName; required=$true; cliFound=[bool]$codexCli; registered=[bool]$mcpRegistered }
     products = [ordered]@{ autocad=$autocadProducts; revit=$revitProducts }
     runningAutodesk = $running
+    connectorDiscovery = $connectorDiscovery
     prerequisiteIssues = @($prerequisiteIssues)
     compatibilityIssues = @($compatibilityIssues)
     skippedProducts = @($skippedProducts)

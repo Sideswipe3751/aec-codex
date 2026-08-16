@@ -1,6 +1,6 @@
 {
   "name": "bim-bridge",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "description": "Connect Kimi Code to the local BIM Bridge Runtime for safe Revit and AutoCAD automation.",
   "keywords": ["bim", "autocad", "revit", "autodesk", "mcp", "kimi"],
   "author": "BIM Bridge",

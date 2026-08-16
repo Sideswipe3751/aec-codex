@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-alpha.4 - 2026-08-16
+
+- Added credential-free connector descriptor evidence to the read-only Host
+  status report, with separate BIM Bridge 2.x and legacy compatibility paths.
+- Documented `%APPDATA%\BIM Bridge\instances` as the authoritative 2.x
+  descriptor location and the connector startup error log as the next check
+  after a non-fatal Revit journal warning.
+
 ## 2.0.0-alpha.3 - 2026-08-16
 
 - Added shared Autodesk product discovery for both preflight and Host install,

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "channel": "preview",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "published": true,
-  "releaseZipUri": "https://github.com/Sideswipe3751/bim-bridge/releases/download/v2.0.0-alpha.3/bim-bridge-host-2.0.0-alpha.3-win-x64.zip",
-  "sha256": "51c42b92b1a8460d9df4454e5c3bc18c47dfeefb87512eb8602fc98d8fb17e13",
+  "releaseZipUri": "https://github.com/Sideswipe3751/bim-bridge/releases/download/v2.0.0-alpha.4/bim-bridge-host-2.0.0-alpha.4-win-x64.zip",
+  "sha256": "ece0fed57c3043934931b30a1b1d0e2d3d65270164dc5ca8a974d54d66597bfc",
   "developmentSourceRoot": null,
   "platform": "windows-x64",
   "mcpRegistration": "bim-bridge-local",

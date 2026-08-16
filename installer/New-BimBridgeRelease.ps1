@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$Version = '2.0.0-alpha.3',
+    [string]$Version = '2.0.0-alpha.4',
     [string]$OutputDirectory
 )
 

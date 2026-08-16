@@ -320,7 +320,10 @@ the skill keeps only user guidance and adapter operation instructions.
 Every agent adapter uses the same session-bootstrap lifecycle and neutral Host
 status semantics. On its first activation in a relevant task, it runs a
 read-only probe against the shared install state and may add only its own
-platform-registration evidence.
+platform-registration evidence. The probe may report credential-free descriptor
+filesystem evidence from the current BIM Bridge directory and legacy fallback,
+but it does not parse or expose connector tokens and does not replace the
+Runtime's authoritative descriptor validation and target selection.
 When installation, repair, or upgrade is needed, it presents the exact version,
 source, digest, locations, running-product constraints, and rollback behavior,
 then invokes the shared host installer only after affirmative consent in that

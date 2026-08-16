@@ -15,8 +15,8 @@ add-ins or register the local MCP Host.
 3. On its first relevant activation, the Skill runs
    `Get-BimBridgeHostStatus.ps1`. This does not modify the computer.
 4. Codex reports the target version, installed products, running Autodesk
-   processes, exact paths, external MCP status, release source, and integrity
-   state.
+   processes, exact paths, credential-free connector descriptor evidence,
+   external MCP status, release source, and integrity state.
 5. The user explicitly approves or declines the proposed Host changes.
 6. After approval, `Install-BimBridgeHost.ps1` verifies the published archive
    and checksum, or uses the explicit trusted source root of a development
@@ -60,6 +60,13 @@ Discovery uses a validated explicit product-path override when one is supplied,
 then Windows installer registry records, then standard Program Files paths. The
 status report shows `installPath` and `detectionSource` for each detected
 product. Preflight and installation use the same discovery implementation.
+
+Revit and AutoCAD connectors in BIM Bridge 2.x publish active descriptors under
+`%APPDATA%\BIM Bridge\instances`. The status probe reports the directory and
+descriptor filenames, sizes, and timestamps without reading or exposing bearer
+tokens. `%APPDATA%\AEC Codex\instances` is reported separately only as a legacy
+compatibility fallback. Connector startup failures are recorded at
+`%APPDATA%\BIM Bridge\connector-errors.log` when diagnostic I/O is available.
 
 With explicit legacy migration, the same transaction removes only known
 installer-owned AEC Codex Host, provider, Autodesk manifest/bundle, state-file,
