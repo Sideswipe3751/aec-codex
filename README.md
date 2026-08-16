@@ -134,6 +134,15 @@ codex plugin marketplace add Sideswipe3751/bim-bridge --ref main
 codex plugin add bim-bridge@bim-bridge
 ```
 
+To replace an already installed older Plugin, refresh the Marketplace and
+recreate its installed cache:
+
+```powershell
+codex plugin marketplace upgrade bim-bridge
+codex plugin remove bim-bridge@bim-bridge
+codex plugin add bim-bridge@bim-bridge
+```
+
 Restart Codex and start a new task about BIM Bridge. The installed Skill verifies
 the detached release-manifest signature and pinned Host SHA-256 before offering
 installation. Ordinary remote users must not substitute a source build or an

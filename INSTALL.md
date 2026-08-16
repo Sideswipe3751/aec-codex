@@ -29,8 +29,14 @@ If the Marketplace is already configured, refresh it before reinstalling:
 
 ```powershell
 codex plugin marketplace upgrade bim-bridge
+codex plugin remove bim-bridge@bim-bridge
 codex plugin add bim-bridge@bim-bridge
 ```
+
+Marketplace upgrade refreshes the repository snapshot; removing and adding the
+Plugin replaces the immutable installed cache. Confirm that the subsequent
+read-only status reports target version `2.0.0-alpha.2` before approving Host
+installation.
 
 After the Plugin command succeeds:
 

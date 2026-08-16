@@ -70,6 +70,8 @@ if (-not $readme.Contains($canonicalPrompt) -or -not $install.Contains($canonica
 }
 foreach ($required in @(
     'codex plugin marketplace add Sideswipe3751/bim-bridge --ref main',
+    'codex plugin marketplace upgrade bim-bridge',
+    'codex plugin remove bim-bridge@bim-bridge',
     'codex plugin add bim-bridge@bim-bridge',
     '/plugin marketplace add https://github.com/Sideswipe3751/bim-bridge',
     '/plugin install bim-bridge@bim-bridge',
