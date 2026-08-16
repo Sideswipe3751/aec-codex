@@ -1,6 +1,6 @@
 {
   "name": "bim-bridge",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.2",
   "description": "Bootstrap Codex into the local BIM Bridge Runtime for safe Revit and AutoCAD automation.",
   "author": {
     "name": "BIM Bridge"

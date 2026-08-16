@@ -18,13 +18,14 @@ try {
         ManifestName = 'BimBridge.Revit2999.addin'
         TargetFramework = 'net8.0-windows'
         SupportedTargetFrameworks = 'net8.0-windows;net10.0-windows'
+        CertifiedTargetFrameworks = 'net10.0-windows'
         RuntimeFamily = 'modern'
         RuntimeResolution = 'installed-api-runtime'
         DynamicCompiler = 'roslyn'
         UseRevitContext = 'false'
         ProviderAvailable = 'false'
         SupportStatus = 'experimental'
-        CertificationStatus = 'pending'
+        CertificationStatus = 'certified'
         InstallSubdirectory = 'Autodesk\Revit Test'
         DefaultTemplateSubdirectory = 'Autodesk\RVT Test\Templates\Default.rte'
     }
@@ -46,13 +47,30 @@ try {
 
     [IO.File]::WriteAllText(
         (Join-Path $install 'RevitAPI.runtimeconfig.json'),
+        (@{ runtimeOptions = @{ tfm = 'net8.0' } } | ConvertTo-Json -Depth 4),
+        [Text.UTF8Encoding]::new($false))
+    $uncertifiedRejected = $false
+    try { Resolve-RevitMatrixEntry $release $programFiles $programData -RequireCertified | Out-Null } catch {
+        $uncertifiedRejected = $_.Exception.Message -like '*not certified*net10.0-windows*'
+    }
+    if (-not $uncertifiedRejected) { throw 'An installed but uncertified runtime variant must fail closed.' }
+
+    [IO.File]::WriteAllText(
+        (Join-Path $install 'RevitAPI.runtimeconfig.json'),
+        (@{ runtimeOptions = @{ tfm = 'net10.0' } } | ConvertTo-Json -Depth 4),
+        [Text.UTF8Encoding]::new($false))
+    $certified = Resolve-RevitMatrixEntry $release $programFiles $programData -RequireCertified
+    Assert-Equal 'net10.0-windows' $certified.TargetFramework 'The certified runtime variant was rejected.'
+
+    [IO.File]::WriteAllText(
+        (Join-Path $install 'RevitAPI.runtimeconfig.json'),
         (@{ runtimeOptions = @{ tfm = 'net12.0' } } | ConvertTo-Json -Depth 4),
         [Text.UTF8Encoding]::new($false))
     $rejected = $false
     try { Resolve-RevitMatrixEntry $release $programFiles $programData | Out-Null } catch { $rejected = $true }
     if (-not $rejected) { throw 'An undeclared future runtime must fail closed.' }
 
-    [ordered]@{ status='passed'; resolved=@('net8.0-windows','net10.0-windows'); rejected='net12.0' } | ConvertTo-Json
+    [ordered]@{ status='passed'; resolved=@('net8.0-windows','net10.0-windows'); uncertifiedRejected='net8.0-windows'; rejected='net12.0' } | ConvertTo-Json
 } finally {
     $resolvedTestRoot = [IO.Path]::GetFullPath($testRoot)
     $resolvedTemp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'

@@ -77,6 +77,30 @@ try {
         Assert ($status.status -eq 'not_installed') "Expected not_installed, received $($status.status)."
     }
 
+    Invoke-Test 'preflight skips an incompatible runtime without blocking compatible products' {
+        $caseRoot = Join-Path $temporaryRoot 'uncertified-revit-runtime'
+        $install = Join-Path $caseRoot 'program-files\Autodesk\Revit 2026'
+        $compatibleInstall = Join-Path $caseRoot 'program-files\Autodesk\Revit 2027'
+        New-Item -ItemType Directory -Force -Path $install,$compatibleInstall | Out-Null
+        [IO.File]::WriteAllText(
+            (Join-Path $install 'RevitAPI.runtimeconfig.json'),
+            '{"runtimeOptions":{"tfm":"net8.0"}}',
+            [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText(
+            (Join-Path $compatibleInstall 'RevitAPI.runtimeconfig.json'),
+            '{"runtimeOptions":{"tfm":"net10.0"}}',
+            [Text.UTF8Encoding]::new($false))
+        $status = Invoke-Status $caseRoot
+        Assert ($status.status -eq 'not_installed' -and $status.recommendedAction -eq 'install') "Expected install to remain available, received $($status.status)."
+        Assert (@($status.prerequisiteIssues).Count -eq 0) 'An incompatible product was treated as a global prerequisite failure.'
+        Assert (@($status.compatibilityIssues | Where-Object { $_ -like '*revit 2026*net8.0-windows*not certified*net10.0-windows*' }).Count -eq 1) 'Preflight did not explain the exact skipped Revit runtime.'
+        Assert (@($status.skippedProducts | Where-Object { $_.product -eq 'revit' -and $_.version -eq '2026' }).Count -eq 1) 'Preflight did not return the skipped Revit product.'
+        $revit = @($status.products.revit | Where-Object version -eq '2026')[0]
+        $compatibleRevit = @($status.products.revit | Where-Object version -eq '2027')[0]
+        Assert ($revit.targetFramework -eq 'net8.0-windows' -and -not [bool]$revit.certified) 'Preflight did not return exact runtime certification evidence.'
+        Assert ([bool]$compatibleRevit.certified) 'The compatible Revit version was not allowed to continue.'
+    }
+
     Invoke-Test 'audit-only state directory is not a partial installation' {
         $caseRoot = Join-Path $temporaryRoot 'audit-only'
         $journal = Join-Path $caseRoot 'local\BIM Bridge\journal'
@@ -97,7 +121,7 @@ try {
         $caseRoot = Join-Path $temporaryRoot 'old-schema'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
         New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
-        @{ schemaVersion=3; version='2.0.0-alpha.1' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
+        @{ schemaVersion=3; version='2.0.0-alpha.2' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
         $status = Invoke-Status $caseRoot
         Assert ($status.status -eq 'needs_repair') 'An unsupported state schema was accepted.'
     }
@@ -105,12 +129,12 @@ try {
     Invoke-Test 'restart comparison preserves UTC JSON timestamps' {
         $caseRoot = Join-Path $temporaryRoot 'restart-time'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
-        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.1\mcp-server\aec_mcp_server.py'
+        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.2\mcp-server\aec_mcp_server.py'
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installedFile) | Out-Null
         Set-Content -LiteralPath $installedFile -Value 'healthy' -Encoding UTF8
         $hash = (Get-FileHash -LiteralPath $installedFile -Algorithm SHA256).Hash.ToLowerInvariant()
         [ordered]@{
-            schemaVersion=4; version='2.0.0-alpha.1'; installedAtUtc='2026-08-11T20:00:00Z'
+            schemaVersion=4; version='2.0.0-alpha.2'; installedAtUtc='2026-08-11T20:00:00Z'
             restartRequired=$true; localMcpServer=$installedFile; python=$installedFile; launcher=$installedFile
             ownedPaths=@($installedFile); files=@([ordered]@{ path=$installedFile; sha256=$hash })
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
@@ -140,10 +164,14 @@ try {
         Assert ($autoCADEntries.Count -eq 4) "Expected four AutoCAD matrix entries, received $($autoCADEntries.Count)."
         foreach ($entry in $revit) {
             Assert ([string]$entry.RevitAssemblyName -eq "BimBridge.Revit$([string]$entry.ReleaseYear)") "Revit $([string]$entry.ReleaseYear) DLL is not BIM Bridge branded."
+            Assert (-not [string]::IsNullOrWhiteSpace([string]$entry.RevitCertifiedTargetFrameworks)) "Revit $([string]$entry.ReleaseYear) has no certified target framework."
         }
         foreach ($entry in $autocad) {
             Assert ([string]$entry.AssemblyName -eq "BimBridge.AutoCAD$([string]$entry.Include)") "AutoCAD $([string]$entry.Include) DLL is not BIM Bridge branded."
+            Assert (-not [string]::IsNullOrWhiteSpace([string]$entry.CertifiedTargetFrameworks)) "AutoCAD $([string]$entry.Include) has no certified target framework."
         }
+        $revit2026 = @($revit | Where-Object ReleaseYear -eq '2026')[0]
+        Assert ([string]$revit2026.RevitCertifiedTargetFrameworks -eq 'net10.0-windows') 'Revit 2026 certification is not scoped to its tested .NET 10 runtime.'
     }
 
     Invoke-Test 'new Autodesk payload contains no AEC Codex assembly identities' {
@@ -183,6 +211,11 @@ try {
         $installerText = Get-Content -LiteralPath $mainInstaller -Raw
         Assert ($installerText -match 'candidateExecutable.*Revit\.exe') 'Revit detection does not precede runtime resolution.'
         Assert ($installerText -match 'candidateExecutable.*acad\.exe') 'AutoCAD detection does not precede runtime resolution.'
+        Assert ($installerText -match 'Resolve-RevitMatrixEntry\s+\$entry\s+-RequireCertified') 'Installer does not reject uncertified Revit runtime variants before staging.'
+        Assert ($installerText -match 'Resolve-AutoCADMatrixEntry\s+\$entry\s+-RequireCertified') 'Installer does not identify uncertified AutoCAD runtime variants before staging.'
+        Assert ($installerText -match 'Add-SkippedProduct') 'Installer does not record incompatible installed products as skipped.'
+        Assert ($installerText -match 'skippedProducts=@\(\$skippedProducts\)') 'Installer result does not expose skipped products.'
+        Assert ($installerText -match 'knownRevitManifestPaths') 'Installer does not transactionally remove stale manifests for skipped Revit versions.'
     }
 
     Invoke-Test 'migration preserves the legacy state root itself' {

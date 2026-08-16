@@ -4,6 +4,9 @@ param([Parameter(Mandatory=$true)][string]$ZipPath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 $ZipPath = [IO.Path]::GetFullPath($ZipPath)
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $repoRoot 'eng\AutodeskVersionMatrix.ps1')
+$matrixPath = Join-Path $repoRoot 'eng\Autodesk.Versions.props'
 $hashFile = $ZipPath + '.sha256'
 if (-not (Test-Path -LiteralPath $ZipPath -PathType Leaf) -or -not (Test-Path -LiteralPath $hashFile -PathType Leaf)) {
     throw 'Release archive or checksum file is missing.'
@@ -18,12 +21,22 @@ try {
     $entries = @($archive.Entries)
     $blocked = @($entries | Where-Object { $_.FullName -match '(^|/)(\.env|\.npmrc|id_rsa|credentials)$|\.(pfx|p12|pem|key)$' })
     if ($blocked.Count -gt 0) { throw 'Release archive contains forbidden files.' }
-    foreach ($required in @(
+    $requiredEntries = @(
         'bim-bridge/installer/Install-BimBridge.ps1',
-        'bim-bridge/runtime/python/python.exe',
-        'bim-bridge/src/BimBridge.AutoCAD/bin/Release/2027/net10.0-windows/BimBridge.AutoCAD2027.dll',
-        'bim-bridge/src/BimBridge.Revit/bin/Release/2027/net10.0-windows/BimBridge.Revit2027.dll'
-    )) {
+        'bim-bridge/runtime/python/python.exe'
+    )
+    foreach ($entry in @(Get-RevitMatrixEntries $matrixPath | Where-Object CertificationStatus -eq 'certified')) {
+        foreach ($target in @($entry.CertifiedTargetFrameworks -split ';')) {
+            $requiredEntries += "bim-bridge/src/BimBridge.Revit/bin/Release/$($entry.Include)/$target/$($entry.AssemblyName).dll"
+            $requiredEntries += "bim-bridge/src/BimBridge.Revit/bin/Release/$($entry.Include)/$target/$($entry.ManifestName)"
+        }
+    }
+    foreach ($entry in @(Get-AutoCADMatrixEntries $matrixPath | Where-Object CertificationStatus -eq 'certified')) {
+        foreach ($target in @($entry.CertifiedTargetFrameworks -split ';')) {
+            $requiredEntries += "bim-bridge/src/BimBridge.AutoCAD/bin/Release/$($entry.Include)/$target/$($entry.AssemblyName).dll"
+        }
+    }
+    foreach ($required in $requiredEntries) {
         if ($entries.FullName -notcontains $required) { throw "Release archive is missing: $required" }
     }
 } finally { $archive.Dispose() }

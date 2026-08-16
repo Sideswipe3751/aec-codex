@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.0-alpha.2 - 2026-08-16
+
+- Scoped Autodesk release certification to exact runtime target frameworks.
+- Changed Host installation to skip incompatible installed Autodesk versions
+  while continuing to deploy every compatible certified connector.
+- Added explicit `compatibilityIssues` and `skippedProducts` status and install
+  evidence, plus transactional cleanup of stale skipped-version manifests.
+- Strengthened release packaging and archive tests to require every exact
+  matrix-certified runtime variant.
+
 ## 2.0.0-alpha.1 - 2026-08-15
 
 - Added one shared, matrix-driven AutoCAD host for certified AutoCAD 2024-2027.

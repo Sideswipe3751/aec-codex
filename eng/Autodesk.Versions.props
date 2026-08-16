@@ -10,6 +10,7 @@
         <RevitRuntimeFamily>netfx</RevitRuntimeFamily>
         <RevitRuntimeResolution>fixed</RevitRuntimeResolution>
         <RevitSupportedTargetFrameworks>net48</RevitSupportedTargetFrameworks>
+        <RevitCertifiedTargetFrameworks>net48</RevitCertifiedTargetFrameworks>
         <RevitDynamicCompiler>codedom</RevitDynamicCompiler>
         <RevitUseRevitContext>false</RevitUseRevitContext>
         <RevitProviderAvailable>true</RevitProviderAvailable>
@@ -28,6 +29,7 @@
         <RevitRuntimeFamily>modern</RevitRuntimeFamily>
         <RevitRuntimeResolution>installed-api-runtime</RevitRuntimeResolution>
         <RevitSupportedTargetFrameworks>net8.0-windows;net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitCertifiedTargetFrameworks>net8.0-windows</RevitCertifiedTargetFrameworks>
         <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
         <RevitUseRevitContext>true</RevitUseRevitContext>
         <RevitProviderAvailable>false</RevitProviderAvailable>
@@ -46,6 +48,7 @@
         <RevitRuntimeFamily>modern</RevitRuntimeFamily>
         <RevitRuntimeResolution>installed-api-runtime</RevitRuntimeResolution>
         <RevitSupportedTargetFrameworks>net8.0-windows;net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitCertifiedTargetFrameworks>net10.0-windows</RevitCertifiedTargetFrameworks>
         <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
         <RevitUseRevitContext>false</RevitUseRevitContext>
         <RevitProviderAvailable>false</RevitProviderAvailable>
@@ -64,6 +67,7 @@
         <RevitRuntimeFamily>modern</RevitRuntimeFamily>
         <RevitRuntimeResolution>fixed</RevitRuntimeResolution>
         <RevitSupportedTargetFrameworks>net10.0-windows</RevitSupportedTargetFrameworks>
+        <RevitCertifiedTargetFrameworks>net10.0-windows</RevitCertifiedTargetFrameworks>
         <RevitDynamicCompiler>roslyn</RevitDynamicCompiler>
         <RevitUseRevitContext>false</RevitUseRevitContext>
         <RevitProviderAvailable>false</RevitProviderAvailable>
@@ -81,6 +85,7 @@
         <AutoCADAssemblyName>BimBridge.AutoCAD2024</AutoCADAssemblyName>
         <AutoCADTargetFramework>net48</AutoCADTargetFramework>
         <AutoCADSupportedTargetFrameworks>net48</AutoCADSupportedTargetFrameworks>
+        <AutoCADCertifiedTargetFrameworks>net48</AutoCADCertifiedTargetFrameworks>
         <AutoCADRuntimeFamily>netfx</AutoCADRuntimeFamily>
         <AutoCADRuntimeResolution>fixed</AutoCADRuntimeResolution>
         <AutoCADDynamicCompiler>codedom</AutoCADDynamicCompiler>
@@ -96,6 +101,7 @@
         <AutoCADAssemblyName>BimBridge.AutoCAD2025</AutoCADAssemblyName>
         <AutoCADTargetFramework>net8.0-windows</AutoCADTargetFramework>
         <AutoCADSupportedTargetFrameworks>net8.0-windows;net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADCertifiedTargetFrameworks>net8.0-windows</AutoCADCertifiedTargetFrameworks>
         <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
         <AutoCADRuntimeResolution>installed-api-runtime</AutoCADRuntimeResolution>
         <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>
@@ -111,6 +117,7 @@
         <AutoCADAssemblyName>BimBridge.AutoCAD2026</AutoCADAssemblyName>
         <AutoCADTargetFramework>net8.0-windows</AutoCADTargetFramework>
         <AutoCADSupportedTargetFrameworks>net8.0-windows;net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADCertifiedTargetFrameworks>net10.0-windows</AutoCADCertifiedTargetFrameworks>
         <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
         <AutoCADRuntimeResolution>installed-api-runtime</AutoCADRuntimeResolution>
         <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>
@@ -126,6 +133,7 @@
         <AutoCADAssemblyName>BimBridge.AutoCAD2027</AutoCADAssemblyName>
         <AutoCADTargetFramework>net10.0-windows</AutoCADTargetFramework>
         <AutoCADSupportedTargetFrameworks>net10.0-windows</AutoCADSupportedTargetFrameworks>
+        <AutoCADCertifiedTargetFrameworks>net10.0-windows</AutoCADCertifiedTargetFrameworks>
         <AutoCADRuntimeFamily>modern</AutoCADRuntimeFamily>
         <AutoCADRuntimeResolution>fixed</AutoCADRuntimeResolution>
         <AutoCADDynamicCompiler>roslyn</AutoCADDynamicCompiler>

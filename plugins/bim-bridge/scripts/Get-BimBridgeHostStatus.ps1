@@ -46,11 +46,76 @@ function Find-CodexCli {
     return $null
 }
 
-function Test-ProductPath([string[]]$Roots, [string]$RelativePath) {
+function Find-ProductPath([string[]]$Roots, [string]$RelativePath) {
     foreach ($root in $Roots) {
-        if ($root -and (Test-Path -LiteralPath (Join-Path $root $RelativePath))) { return $true }
+        if (-not $root) { continue }
+        $candidate = Join-Path $root $RelativePath
+        if (Test-Path -LiteralPath $candidate -PathType Container) { return $candidate }
     }
-    return $false
+    return $null
+}
+
+function Convert-AutodeskRuntimeTfm([string]$RuntimeTfm, [string]$RuntimeConfigPath) {
+    switch -Regex ($RuntimeTfm) {
+        '^net8(\.0)?$' { return 'net8.0-windows' }
+        '^net10(\.0)?$' { return 'net10.0-windows' }
+        default { throw "Unsupported Autodesk runtime '$RuntimeTfm' at $RuntimeConfigPath" }
+    }
+}
+
+function Get-CertifiedTargets($Manifest, [string]$Product, [string]$Version) {
+    $variantRoot = Get-PropertyValue $Manifest 'certifiedVariants'
+    $variants = Get-PropertyValue $variantRoot $Product
+    @($variants | Where-Object { [string]$_.version -eq $Version } | ForEach-Object { [string]$_.targetFramework })
+}
+
+function Get-ProductStatus(
+    $Manifest,
+    [string]$Product,
+    [string]$Version,
+    [string[]]$Roots,
+    [string]$RelativePath,
+    [string]$RuntimeConfigName
+) {
+    $installPath = Find-ProductPath $Roots $RelativePath
+    $certifiedTargets = @(Get-CertifiedTargets $Manifest $Product $Version)
+    $targetFramework = $null
+    $detectedRuntime = $null
+    $issue = $null
+    if ($installPath) {
+        if ($certifiedTargets.Count -eq 1 -and $certifiedTargets[0] -eq 'net48') {
+            $targetFramework = 'net48'
+        } else {
+            $runtimeConfigPath = Join-Path $installPath $RuntimeConfigName
+            try {
+                if (-not (Test-Path -LiteralPath $runtimeConfigPath -PathType Leaf)) {
+                    throw "runtime metadata is missing: $runtimeConfigPath"
+                }
+                $runtimeConfig = Get-Content -LiteralPath $runtimeConfigPath -Raw | ConvertFrom-Json
+                $detectedRuntime = [string]$runtimeConfig.runtimeOptions.tfm
+                $targetFramework = Convert-AutodeskRuntimeTfm $detectedRuntime $runtimeConfigPath
+            } catch {
+                $issue = "$Product $Version runtime could not be resolved: $($_.Exception.Message)"
+            }
+        }
+        if (-not $issue -and $certifiedTargets -notcontains $targetFramework) {
+            $available = if ($certifiedTargets.Count -gt 0) { $certifiedTargets -join ', ' } else { 'none' }
+            $issue = "$Product $Version target framework $targetFramework is not certified for BIM Bridge $([string]$Manifest.version). Certified target frameworks: $available."
+        }
+    }
+    [pscustomobject]@{
+        Product = $Product
+        Version = $Version
+        Status = [ordered]@{
+            version=$Version
+            installed=[bool]$installPath
+            targetFramework=$targetFramework
+            detectedRuntime=$detectedRuntime
+            certified=([bool]$installPath -and -not $issue)
+            certifiedTargetFrameworks=$certifiedTargets
+        }
+        Issue = $issue
+    }
 }
 
 if (-not $ManifestPath) { $ManifestPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'release-manifest.json' }
@@ -67,14 +132,23 @@ if (-not $ProgramFilesX86Root) { $ProgramFilesX86Root = [Environment]::GetFolder
 
 $platformSupported = ($env:OS -eq 'Windows_NT' -and [Environment]::Is64BitOperatingSystem)
 $prerequisiteIssues = New-Object System.Collections.ArrayList
+$compatibilityIssues = New-Object System.Collections.ArrayList
 if (-not $platformSupported) { [void]$prerequisiteIssues.Add('BIM Bridge requires 64-bit Windows.') }
 
 $programRoots = @($ProgramFilesRoot, $ProgramFilesX86Root)
-$revitProducts = @($manifest.supportedProducts.revit | ForEach-Object {
-    [ordered]@{ version=[string]$_; installed=(Test-ProductPath $programRoots ('Autodesk\Revit ' + [string]$_)) }
+$revitResults = @($manifest.supportedProducts.revit | ForEach-Object {
+    Get-ProductStatus $manifest 'revit' ([string]$_) $programRoots ('Autodesk\Revit ' + [string]$_) 'RevitAPI.runtimeconfig.json'
 })
-$autocadProducts = @($manifest.supportedProducts.autocad | ForEach-Object {
-    [ordered]@{ version=[string]$_; installed=(Test-ProductPath $programRoots ('Autodesk\AutoCAD ' + [string]$_)) }
+$autocadResults = @($manifest.supportedProducts.autocad | ForEach-Object {
+    Get-ProductStatus $manifest 'autocad' ([string]$_) $programRoots ('Autodesk\AutoCAD ' + [string]$_) 'acdbmgd.runtimeconfig.json'
+})
+$revitProducts = @($revitResults | ForEach-Object { $_.Status })
+$autocadProducts = @($autocadResults | ForEach-Object { $_.Status })
+foreach ($issue in @($revitResults + $autocadResults | ForEach-Object { $_.Issue } | Where-Object { $_ })) {
+    [void]$compatibilityIssues.Add([string]$issue)
+}
+$skippedProducts = @($revitResults + $autocadResults | Where-Object { $_.Issue } | ForEach-Object {
+    [ordered]@{ product=$_.Product; version=$_.Version; reason=$_.Issue }
 })
 
 $running = @()
@@ -194,6 +268,8 @@ if (-not $state) {
     products = [ordered]@{ autocad=$autocadProducts; revit=$revitProducts }
     runningAutodesk = $running
     prerequisiteIssues = @($prerequisiteIssues)
+    compatibilityIssues = @($compatibilityIssues)
+    skippedProducts = @($skippedProducts)
     missingFiles = @($missingFiles)
     changedFiles = @($changedFiles)
     stateError = $stateError

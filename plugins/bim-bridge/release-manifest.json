@@ -1,16 +1,30 @@
 {
   "schemaVersion": 2,
   "channel": "preview",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.2",
   "published": true,
-  "releaseZipUri": "https://github.com/Sideswipe3751/bim-bridge/releases/download/v2.0.0-alpha.1/bim-bridge-host-2.0.0-alpha.1-win-x64.zip",
-  "sha256": "2534a8b1f48cb7f285944de6ebe89b548e0cddc17841826badc658415955962c",
+  "releaseZipUri": "https://github.com/Sideswipe3751/bim-bridge/releases/download/v2.0.0-alpha.2/bim-bridge-host-2.0.0-alpha.2-win-x64.zip",
+  "sha256": "a9f890ae3bdb6121999dada58ef359ca551acd76a73c03f543082bd5c85801b5",
   "developmentSourceRoot": null,
   "platform": "windows-x64",
   "mcpRegistration": "bim-bridge-local",
   "supportedProducts": {
     "autocad": ["2024", "2025", "2026", "2027"],
     "revit": ["2024", "2025", "2026", "2027"]
+  },
+  "certifiedVariants": {
+    "autocad": [
+      {"version": "2024", "targetFramework": "net48"},
+      {"version": "2025", "targetFramework": "net8.0-windows"},
+      {"version": "2026", "targetFramework": "net10.0-windows"},
+      {"version": "2027", "targetFramework": "net10.0-windows"}
+    ],
+    "revit": [
+      {"version": "2024", "targetFramework": "net48"},
+      {"version": "2025", "targetFramework": "net8.0-windows"},
+      {"version": "2026", "targetFramework": "net10.0-windows"},
+      {"version": "2027", "targetFramework": "net10.0-windows"}
+    ]
   },
   "installLocations": [
     "%LOCALAPPDATA%\\BIM Bridge",

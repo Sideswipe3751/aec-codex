@@ -1,6 +1,6 @@
 # BIM Bridge architecture contract
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-16
 
 This document is the canonical architecture contract for BIM Bridge. Read it
 before changing source code, build logic, tests, Autodesk manifests, provider
@@ -515,6 +515,16 @@ just a four-digit year. Certification state attaches to that exact key. Build
 scripts may expose product-specific views of the matrix, but those views are
 derived and never independently edited.
 
+Each release entry therefore distinguishes target frameworks that the shared
+source can support from the exact target frameworks certified for distribution.
+The signed release manifest is a derived snapshot of those certified variants,
+so lightweight adapter preflight can identify an installed but uncertified
+Autodesk runtime as skipped before Host mutation. A skipped runtime does not
+block compatible installed products. Release packaging copies every and only
+the matrix-certified variants and fails if any declared artifact is absent; it
+must never select whichever single output happens to exist on the packaging
+machine.
+
 ## Shared Revit implementation
 
 The shared Revit engine owns:
@@ -834,7 +844,7 @@ acceptance pass for AutoCAD 2024 (`net48`), 2025 (`net8.0-windows`), 2026
 **Status: published Codex-only alpha preview; stable cross-machine gate pending.** The lightweight
 `bim-bridge` plugin and Skill bootstrap are separated from the transactional
 Windows Host installer. The installer uses the Autodesk matrix, deploys the
-four certified Revit and four certified AutoCAD variants when present, records hashes,
+four certified Revit and four certified AutoCAD runtime variants when present, records hashes,
 refuses loaded Autodesk processes, migrates known legacy-owned components, and
 rolls back files and MCP registrations on failure. The immutable preview archive
 is pinned by SHA-256 in a detached-signature-verified manifest. Stable promotion
@@ -881,6 +891,8 @@ Its required behavior is:
   the agent package alone is not consent to modify Autodesk or host state;
 - discover installed Autodesk versions;
 - deploy only matching, certified artifacts;
+- report and leave incompatible installed Autodesk versions untouched while
+  continuing to deploy other matching certified connectors;
 - keep connector support separate from optional provider support;
 - refuse unsafe replacement of assemblies loaded by a running Autodesk process;
 - apply all selected versions as one recoverable installation transaction;
@@ -888,10 +900,17 @@ Its required behavior is:
 - record installed files and hashes per product/version;
 - aggregate restart requirements so one final restart is sufficient.
 
-Release-package validation uses the installer's read-only `-ValidateOnly` path.
-It resolves only Autodesk products actually installed on the validation machine
-and verifies their exact packaged connector, manifest, and private-Python inputs
-without creating staging directories or changing MCP registration.
+Release-package validation combines two gates. The archive-level gate verifies
+every exact certified product/runtime variant from the matrix, independent of
+what is installed on the packaging machine. The installer's read-only
+`-ValidateOnly` path then resolves Autodesk products actually installed on the
+validation machine and verifies their exact packaged connector, manifest, and
+private-Python inputs without creating staging directories or changing MCP
+registration. An installed runtime that is supported by source but not listed
+as certified for that release is reported as skipped before mutation; it does
+not fail or roll back connectors for other compatible versions. Any stale BIM
+Bridge manifest for a skipped Revit version is removed inside the same
+recoverable transaction so Autodesk cannot load an incompatible connector.
 
 For the legacy migration, known installer-owned paths and the
 `aec-codex-local` registration may be removed inside the same rollback boundary.

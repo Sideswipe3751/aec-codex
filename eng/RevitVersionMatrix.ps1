@@ -20,6 +20,7 @@ function Get-RevitMatrixEntries([string]$MatrixPath) {
             ManifestName = [string]$properties.RevitManifestName
             TargetFramework = [string]$properties.RevitTargetFramework
             SupportedTargetFrameworks = [string]$properties.RevitSupportedTargetFrameworks
+            CertifiedTargetFrameworks = [string]$properties.RevitCertifiedTargetFrameworks
             RuntimeFamily = [string]$properties.RevitRuntimeFamily
             RuntimeResolution = [string]$properties.RevitRuntimeResolution
             DynamicCompiler = [string]$properties.RevitDynamicCompiler
@@ -36,7 +37,8 @@ function Get-RevitMatrixEntries([string]$MatrixPath) {
 function Resolve-RevitMatrixEntry(
     [object]$Release,
     [string]$ProgramFilesPath = $env:ProgramFiles,
-    [string]$ProgramDataPath = $env:ProgramData
+    [string]$ProgramDataPath = $env:ProgramData,
+    [switch]$RequireCertified
 ) {
     $installDirectory = Join-Path $ProgramFilesPath $Release.InstallSubdirectory
     $apiPath = Join-Path $installDirectory 'RevitAPI.dll'
@@ -69,6 +71,13 @@ function Resolve-RevitMatrixEntry(
     if ($supported -notcontains $targetFramework) {
         throw "Revit $($Release.Include) resolved to $targetFramework, which is outside its declared supported target frameworks."
     }
+    $certifiedValue = if ($Release.PSObject.Properties['CertifiedTargetFrameworks']) { [string]$Release.CertifiedTargetFrameworks } else { '' }
+    $certified = @($certifiedValue.Split(';', [StringSplitOptions]::RemoveEmptyEntries))
+    if ($RequireCertified -and
+        ([string]$Release.CertificationStatus -ne 'certified' -or $certified -notcontains $targetFramework)) {
+        $available = if ($certified.Count -gt 0) { $certified -join ', ' } else { 'none' }
+        throw "Revit $($Release.Include) target framework $targetFramework is not certified for this BIM Bridge release. Certified target frameworks: $available."
+    }
 
     [pscustomobject]@{
         Include = [string]$Release.Include
@@ -77,6 +86,7 @@ function Resolve-RevitMatrixEntry(
         TargetFramework = $targetFramework
         DeclaredTargetFramework = [string]$Release.TargetFramework
         SupportedTargetFrameworks = $supported
+        CertifiedTargetFrameworks = $certified
         DetectedRuntime = $detectedRuntime
         RuntimeFamily = [string]$Release.RuntimeFamily
         RuntimeResolution = [string]$Release.RuntimeResolution

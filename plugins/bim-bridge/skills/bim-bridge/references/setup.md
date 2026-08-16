@@ -13,6 +13,8 @@ Resolve the plugin root two directories above this skill directory, then run
 - Windows architecture and whether the bundled private runtime is intact;
 - whether the `bim-bridge-local` external MCP registration is present;
 - detected AutoCAD and Revit versions;
+- which exact installed Autodesk runtime variants are compatible and which will
+  be skipped;
 - running Autodesk processes;
 - missing, changed, or outdated installed files;
 - the exact status and recommended next action.
@@ -33,6 +35,8 @@ Before an install, repair, upgrade, or uninstall, show the user:
   connectors, and the `bim-bridge-local` MCP registration will be installed
   for the current user;
 - that structured providers are optional and are not installed by this build;
+- that incompatible Autodesk versions will be left untouched while compatible
+  certified versions continue in the same installation;
 - that failure triggers rollback to the previous installation.
 
 Ask one direct confirmation question. Continue only after an affirmative
@@ -51,6 +55,13 @@ it invokes the installer only from the manifest's explicit local source root.
 It must not create a personal plugin or edit a personal marketplace. It
 registers only the external local MCP named `bim-bridge-local`; the Codex plugin
 remains the skill and bootstrap layer.
+
+The Host installer deploys every detected compatible certified connector and
+returns `skippedProducts` for installed versions whose exact runtime is not
+certified by that release. A skipped product must not fail or roll back the
+compatible products, and its existing BIM Bridge manifest must be removed
+inside the same recoverable transaction so an incompatible connector cannot
+remain loadable.
 
 When installation succeeds, tell the user to close and reopen Codex, Revit,
 and AutoCAD, then start a new Codex task. In that new task, rerun the status

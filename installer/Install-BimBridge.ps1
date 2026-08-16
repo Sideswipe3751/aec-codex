@@ -290,23 +290,37 @@ if ($Action -eq 'Uninstall') {
 }
 
 . $matrixHelperPath
+$skippedProducts = New-Object System.Collections.ArrayList
+function Add-SkippedProduct([string]$Product, [string]$Version, [string]$Reason) {
+    [void]$skippedProducts.Add([ordered]@{ product=$Product; version=$Version; reason=$Reason })
+}
 $revitEntries = @(Get-RevitMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
 $resolvedRevit = New-Object System.Collections.ArrayList
 foreach ($entry in $revitEntries) {
     $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$entry.InstallSubdirectory)) 'Revit.exe'
     if (-not (Test-Path -LiteralPath $candidateExecutable -PathType Leaf)) { continue }
     try {
-        $resolved = Resolve-RevitMatrixEntry $entry
+        $resolved = Resolve-RevitMatrixEntry $entry -RequireCertified
         [void]$resolvedRevit.Add($resolved)
     } catch {
-        throw "Installed Revit $($entry.Include) could not be resolved for deployment: $($_.Exception.Message)"
+        Add-SkippedProduct 'revit' ([string]$entry.Include) $_.Exception.Message
     }
 }
 $autoCADEntries = @(Get-AutoCADMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
-$resolvedAutoCAD = @($autoCADEntries | Where-Object {
-    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$_.InstallSubdirectory)) 'acad.exe'
-    Test-Path -LiteralPath $candidateExecutable -PathType Leaf
-} | ForEach-Object { Resolve-AutoCADMatrixEntry $_ })
+$resolvedAutoCAD = New-Object System.Collections.ArrayList
+foreach ($entry in $autoCADEntries) {
+    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$entry.InstallSubdirectory)) 'acad.exe'
+    if (-not (Test-Path -LiteralPath $candidateExecutable -PathType Leaf)) { continue }
+    try {
+        $resolved = Resolve-AutoCADMatrixEntry $entry -RequireCertified
+        [void]$resolvedAutoCAD.Add($resolved)
+    } catch {
+        Add-SkippedProduct 'autocad' ([string]$entry.Include) $_.Exception.Message
+    }
+}
+$knownRevitManifestPaths = @($revitEntries | ForEach-Object {
+    Join-Path $roaming ("Autodesk\Revit\Addins\$($_.Include)\BIM.Bridge.addin")
+})
 
 if (-not $SkipBuild) {
     if ($resolvedRevit.Count -gt 0) {
@@ -338,6 +352,7 @@ if ($ValidateOnly) {
         status='validated'; version=$basePluginVersion
         revit=@($resolvedRevit | ForEach-Object { [string]$_.Include })
         autocad=@($resolvedAutoCAD | ForEach-Object { [string]$_.Include })
+        skippedProducts=@($skippedProducts)
         privatePython=$pythonPath
     } | ConvertTo-Json -Depth 5
     return
@@ -426,7 +441,7 @@ try {
     }
 
     foreach ($target in @($hostRoot,$connectorRoot,$autoCADBundle,$statePath)) { Backup-Path $target $rollbackRoot $backupRecords }
-    foreach ($manifestTarget in $manifestTargets) { Backup-Path $manifestTarget.Final $rollbackRoot $backupRecords }
+    foreach ($manifestPath in $knownRevitManifestPaths) { Backup-Path $manifestPath $rollbackRoot $backupRecords }
     if ($MigrateLegacy) {
         foreach ($target in @($legacyHostRoot,$legacyMaintenanceRoot,$legacyInstallState,$legacyProviderRoot,$legacyRoamingProviders,$legacyAutoCADBundle,$legacyRevitDirectory,$legacyRevitManifest,$legacyProviderDirectory,$legacyProviderManifest)) {
             Backup-Path $target $rollbackRoot $backupRecords
@@ -477,6 +492,7 @@ try {
             revit=@($resolvedRevit | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily } })
             autocad=@($resolvedAutoCAD | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily } })
         }
+        skippedProducts=@($skippedProducts)
         structuredProvidersInstalled=$false; ownedPaths=$ownedPaths; files=$fileRecords
         integrityScope='critical-runtime-and-adapter-files'
         migratedLegacy=$migratedLegacy
@@ -489,7 +505,7 @@ try {
     Remove-StaleTransactionDirectories $stateRoot @()
     [ordered]@{
         status='succeeded'; action=$Action; changed=$true; version=$basePluginVersion; restartRequired=$true
-        products=$state.products; providersInstalled=$false; migratedLegacy=$migratedLegacy
+        products=$state.products; skippedProducts=@($skippedProducts); providersInstalled=$false; migratedLegacy=$migratedLegacy
     } | ConvertTo-Json -Depth 8
 } catch {
     $failure = $_.Exception.Message

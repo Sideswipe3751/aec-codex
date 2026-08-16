@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$Version = '2.0.0-alpha.1',
+    [string]$Version = '2.0.0-alpha.2',
     [string]$OutputDirectory
 )
 
@@ -27,16 +27,27 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
 function Copy-CertifiedOutputs([object[]]$Entries, [string]$Product, [string]$StageRoot) {
     $productRoot = Join-Path $SourceRoot ("src\BimBridge.$Product\bin\Release")
     foreach ($entry in @($Entries | Where-Object { $_.CertificationStatus -eq 'certified' })) {
-        $yearRoot = Join-Path $productRoot ([string]$entry.Include)
-        $supported = @($entry.SupportedTargetFrameworks -split ';')
-        $variants = @(Get-ChildItem -LiteralPath $yearRoot -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $supported -contains $_.Name -and (Test-Path -LiteralPath (Join-Path $_.FullName ("$($entry.AssemblyName).dll")) -PathType Leaf) })
-        if ($variants.Count -ne 1) {
-            throw "$Product $($entry.Include) must have exactly one certified release output; found $($variants.Count)."
+        $targets = @(([string]$entry.CertifiedTargetFrameworks).Split(';', [StringSplitOptions]::RemoveEmptyEntries))
+        if ($targets.Count -eq 0) {
+            throw "$Product $($entry.Include) is certified but has no certified target frameworks."
         }
-        $relative = "src\BimBridge.$Product\bin\Release\$($entry.Include)\$($variants[0].Name)"
-        Copy-ReleasePath $relative $StageRoot
+        foreach ($target in $targets) {
+            $relative = "src\BimBridge.$Product\bin\Release\$($entry.Include)\$target"
+            $source = Join-Path $SourceRoot $relative
+            if (-not (Test-Path -LiteralPath (Join-Path $source ("$($entry.AssemblyName).dll")) -PathType Leaf)) {
+                throw "$Product $($entry.Include) certified $target release output is missing: $source"
+            }
+            Copy-ReleasePath $relative $StageRoot
+        }
     }
+}
+
+function Get-CertifiedVariantKeys([object[]]$Entries, [string]$Product) {
+    @($Entries | Where-Object CertificationStatus -eq 'certified' | ForEach-Object {
+        $entry = $_
+        @(([string]$entry.CertifiedTargetFrameworks).Split(';', [StringSplitOptions]::RemoveEmptyEntries)) |
+            ForEach-Object { "$($Product.ToLowerInvariant())/$($entry.Include)/$_" }
+    })
 }
 
 $pluginManifestPath = Join-Path $SourceRoot 'plugins\bim-bridge\.codex-plugin\plugin.json'
@@ -55,6 +66,17 @@ $autoCADEntries = @(Get-AutoCADMatrixEntries $matrixPath)
 if (@($revitEntries | Where-Object CertificationStatus -eq 'certified').Count -ne 4 -or
     @($autoCADEntries | Where-Object CertificationStatus -eq 'certified').Count -ne 4) {
     throw 'The release gate requires four certified Revit and four certified AutoCAD entries.'
+}
+$expectedVariants = @(
+    Get-CertifiedVariantKeys $revitEntries 'Revit'
+    Get-CertifiedVariantKeys $autoCADEntries 'AutoCAD'
+) | Sort-Object
+$manifestVariants = @(
+    @($releaseManifest.certifiedVariants.revit) | ForEach-Object { "revit/$($_.version)/$($_.targetFramework)" }
+    @($releaseManifest.certifiedVariants.autocad) | ForEach-Object { "autocad/$($_.version)/$($_.targetFramework)" }
+) | Sort-Object
+if (($expectedVariants -join '|') -ne ($manifestVariants -join '|')) {
+    throw 'The signed release manifest certified variants do not match the Autodesk version matrix.'
 }
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('bim-bridge-release-' + [Guid]::NewGuid().ToString('N'))

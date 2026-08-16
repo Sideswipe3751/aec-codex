@@ -20,6 +20,7 @@ function Get-AutoCADMatrixEntries([string]$MatrixPath) {
             AssemblyName = [string]$_.AutoCADAssemblyName
             TargetFramework = [string]$_.AutoCADTargetFramework
             SupportedTargetFrameworks = [string]$_.AutoCADSupportedTargetFrameworks
+            CertifiedTargetFrameworks = [string]$_.AutoCADCertifiedTargetFrameworks
             RuntimeFamily = [string]$_.AutoCADRuntimeFamily
             RuntimeResolution = [string]$_.AutoCADRuntimeResolution
             DynamicCompiler = [string]$_.AutoCADDynamicCompiler
@@ -33,7 +34,8 @@ function Get-AutoCADMatrixEntries([string]$MatrixPath) {
 
 function Resolve-AutoCADMatrixEntry(
     [object]$Release,
-    [string]$ProgramFilesPath = $env:ProgramFiles
+    [string]$ProgramFilesPath = $env:ProgramFiles,
+    [switch]$RequireCertified
 ) {
     $installDirectory = Join-Path $ProgramFilesPath ([string]$Release.InstallSubdirectory)
     $runtimeConfigPath = Join-Path $installDirectory 'acdbmgd.runtimeconfig.json'
@@ -65,6 +67,13 @@ function Resolve-AutoCADMatrixEntry(
     if ($supported -notcontains $targetFramework) {
         throw "AutoCAD $($Release.Include) resolved to $targetFramework, which is outside its declared supported target frameworks."
     }
+    $certifiedValue = if ($Release.PSObject.Properties['CertifiedTargetFrameworks']) { [string]$Release.CertifiedTargetFrameworks } else { '' }
+    $certified = @($certifiedValue.Split(';', [StringSplitOptions]::RemoveEmptyEntries))
+    if ($RequireCertified -and
+        ([string]$Release.CertificationStatus -ne 'certified' -or $certified -notcontains $targetFramework)) {
+        $available = if ($certified.Count -gt 0) { $certified -join ', ' } else { 'none' }
+        throw "AutoCAD $($Release.Include) target framework $targetFramework is not certified for this BIM Bridge release. Certified target frameworks: $available."
+    }
 
     [pscustomobject]@{
         Include = [string]$Release.Include
@@ -72,6 +81,7 @@ function Resolve-AutoCADMatrixEntry(
         TargetFramework = $targetFramework
         DeclaredTargetFramework = [string]$Release.TargetFramework
         SupportedTargetFrameworks = $supported
+        CertifiedTargetFrameworks = $certified
         DetectedRuntime = $detectedRuntime
         RuntimeFamily = [string]$Release.RuntimeFamily
         RuntimeResolution = [string]$Release.RuntimeResolution
