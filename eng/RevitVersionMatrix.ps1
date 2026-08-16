@@ -38,9 +38,11 @@ function Resolve-RevitMatrixEntry(
     [object]$Release,
     [string]$ProgramFilesPath = $env:ProgramFiles,
     [string]$ProgramDataPath = $env:ProgramData,
+    [string]$InstallDirectory,
     [switch]$RequireCertified
 ) {
-    $installDirectory = Join-Path $ProgramFilesPath $Release.InstallSubdirectory
+    if (-not $InstallDirectory) { $InstallDirectory = Join-Path $ProgramFilesPath $Release.InstallSubdirectory }
+    $installDirectory = [IO.Path]::GetFullPath($InstallDirectory)
     $apiPath = Join-Path $installDirectory 'RevitAPI.dll'
     $runtimeConfigPath = Join-Path $installDirectory 'RevitAPI.runtimeconfig.json'
     $targetFramework = [string]$Release.TargetFramework

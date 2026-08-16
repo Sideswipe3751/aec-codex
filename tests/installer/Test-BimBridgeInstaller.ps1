@@ -9,6 +9,7 @@ $pluginRoot = Join-Path $repoRoot 'plugins\bim-bridge'
 $statusScript = Join-Path $pluginRoot 'scripts\Get-BimBridgeHostStatus.ps1'
 $hostInstaller = Join-Path $pluginRoot 'scripts\Install-BimBridgeHost.ps1'
 $releaseVerifier = Join-Path $pluginRoot 'scripts\Test-BimBridgeReleaseManifest.ps1'
+$productDiscovery = Join-Path $pluginRoot 'scripts\AutodeskProductDiscovery.ps1'
 $mainInstaller = Join-Path $repoRoot 'installer\Install-BimBridge.ps1'
 $launcher = Join-Path $repoRoot 'installer\Start-BimBridgeMcp.ps1'
 $matrixPath = Join-Path $repoRoot 'eng\Autodesk.Versions.props'
@@ -24,7 +25,13 @@ function Invoke-Test([string]$Name, [scriptblock]$Body) {
     Write-Output "PASS $Name"
 }
 
-function Invoke-Status([string]$CaseRoot, [string]$CodexStart, [bool]$McpRegistered = $false) {
+function Invoke-Status(
+    [string]$CaseRoot,
+    [string]$CodexStart,
+    [bool]$McpRegistered = $false,
+    [object[]]$RegistryRecords = @(),
+    [hashtable]$ProductInstallPathOverrides
+) {
     $stateRoot = Join-Path $CaseRoot 'local\BIM Bridge'
     $roaming = Join-Path $CaseRoot 'roaming'
     $local = Join-Path $CaseRoot 'local'
@@ -38,14 +45,16 @@ function Invoke-Status([string]$CaseRoot, [string]$CodexStart, [bool]$McpRegiste
         ProgramFilesRoot = $programFiles
         ProgramFilesX86Root = $programFilesX86
         CodexMcpRegisteredOverride = $McpRegistered
+        RegistryInstallRecords = $RegistryRecords
     }
     if ($CodexStart) { $arguments.CodexStartedAtUtc = $CodexStart }
+    if ($ProductInstallPathOverrides) { $arguments.ProductInstallPathOverrides = $ProductInstallPathOverrides }
     (& $statusScript @arguments) | ConvertFrom-Json
 }
 
 try {
     Invoke-Test 'new installer scripts parse on Windows PowerShell' {
-        foreach ($script in @($statusScript,$hostInstaller,$releaseVerifier,$mainInstaller,$launcher)) {
+        foreach ($script in @($statusScript,$hostInstaller,$releaseVerifier,$productDiscovery,$mainInstaller,$launcher)) {
             [void][scriptblock]::Create((Get-Content -LiteralPath $script -Raw))
         }
     }
@@ -82,6 +91,10 @@ try {
         $install = Join-Path $caseRoot 'program-files\Autodesk\Revit 2026'
         $compatibleInstall = Join-Path $caseRoot 'program-files\Autodesk\Revit 2027'
         New-Item -ItemType Directory -Force -Path $install,$compatibleInstall | Out-Null
+        foreach ($path in @(
+            (Join-Path $install 'Revit.exe'), (Join-Path $install 'RevitAPI.dll'),
+            (Join-Path $compatibleInstall 'Revit.exe'), (Join-Path $compatibleInstall 'RevitAPI.dll')
+        )) { New-Item -ItemType File -Force -Path $path | Out-Null }
         [IO.File]::WriteAllText(
             (Join-Path $install 'RevitAPI.runtimeconfig.json'),
             '{"runtimeOptions":{"tfm":"net8.0"}}',
@@ -99,6 +112,37 @@ try {
         $compatibleRevit = @($status.products.revit | Where-Object version -eq '2027')[0]
         Assert ($revit.targetFramework -eq 'net8.0-windows' -and -not [bool]$revit.certified) 'Preflight did not return exact runtime certification evidence.'
         Assert ([bool]$compatibleRevit.certified) 'The compatible Revit version was not allowed to continue.'
+    }
+
+    Invoke-Test 'shared discovery finds registered Autodesk products at custom paths' {
+        . $productDiscovery
+        $customInstall = Join-Path $temporaryRoot 'custom-products\Revit 2024'
+        New-Item -ItemType Directory -Force -Path $customInstall | Out-Null
+        New-Item -ItemType File -Force -Path (Join-Path $customInstall 'Revit.exe'),(Join-Path $customInstall 'RevitAPI.dll') | Out-Null
+        $records = @([pscustomobject]@{ DisplayName='Revit 2024'; InstallLocation=$customInstall })
+        $resolved = Resolve-AutodeskProductInstallation -Product revit -Version 2024 `
+            -InstallSubdirectory 'Autodesk\Revit 2024' -ProgramFilesRoots @() -RegistryInstallRecords $records
+        Assert ($resolved.InstallDirectory -eq [IO.Path]::GetFullPath($customInstall)) 'The registered custom Revit path was not selected.'
+        Assert ($resolved.Source -eq 'registry') 'Custom Revit discovery did not retain registry evidence.'
+
+        $caseRoot = Join-Path $temporaryRoot 'custom-status'
+        $status = Invoke-Status $caseRoot $null $false $records
+        $revit = @($status.products.revit | Where-Object version -eq '2024')[0]
+        Assert ([bool]$revit.installed -and [bool]$revit.certified) 'Status did not recognize certified Revit 2024 at its registered custom path.'
+        Assert ($revit.installPath -eq [IO.Path]::GetFullPath($customInstall) -and $revit.detectionSource -eq 'registry') 'Status omitted custom-path discovery evidence.'
+    }
+
+    Invoke-Test 'explicit custom product path is validated' {
+        . $productDiscovery
+        $invalid = Join-Path $temporaryRoot 'invalid-custom-product'
+        New-Item -ItemType Directory -Force -Path $invalid | Out-Null
+        $rejected = $false
+        try {
+            Resolve-AutodeskProductInstallation -Product revit -Version 2024 `
+                -InstallSubdirectory 'Autodesk\Revit 2024' -ProgramFilesRoots @() `
+                -ProductInstallPathOverrides @{ 'revit:2024'=$invalid } -RegistryInstallRecords @() | Out-Null
+        } catch { $rejected = $_.Exception.Message -like '*explicit revit 2024 installation path is invalid*' }
+        Assert $rejected 'An explicit custom product path without Revit.exe and RevitAPI.dll was accepted.'
     }
 
     Invoke-Test 'audit-only state directory is not a partial installation' {
@@ -121,7 +165,7 @@ try {
         $caseRoot = Join-Path $temporaryRoot 'old-schema'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
         New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
-        @{ schemaVersion=3; version='2.0.0-alpha.2' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
+        @{ schemaVersion=3; version='2.0.0-alpha.3' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
         $status = Invoke-Status $caseRoot
         Assert ($status.status -eq 'needs_repair') 'An unsupported state schema was accepted.'
     }
@@ -129,12 +173,12 @@ try {
     Invoke-Test 'restart comparison preserves UTC JSON timestamps' {
         $caseRoot = Join-Path $temporaryRoot 'restart-time'
         $stateRoot = Join-Path $caseRoot 'local\BIM Bridge'
-        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.2\mcp-server\aec_mcp_server.py'
+        $installedFile = Join-Path $stateRoot 'host\2.0.0-alpha.3\mcp-server\aec_mcp_server.py'
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installedFile) | Out-Null
         Set-Content -LiteralPath $installedFile -Value 'healthy' -Encoding UTF8
         $hash = (Get-FileHash -LiteralPath $installedFile -Algorithm SHA256).Hash.ToLowerInvariant()
         [ordered]@{
-            schemaVersion=4; version='2.0.0-alpha.2'; installedAtUtc='2026-08-11T20:00:00Z'
+            schemaVersion=4; version='2.0.0-alpha.3'; installedAtUtc='2026-08-11T20:00:00Z'
             restartRequired=$true; localMcpServer=$installedFile; python=$installedFile; launcher=$installedFile
             ownedPaths=@($installedFile); files=@([ordered]@{ path=$installedFile; sha256=$hash })
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stateRoot 'install-state.json') -Encoding UTF8
@@ -209,10 +253,10 @@ try {
 
     Invoke-Test 'installer detects installed Autodesk products before runtime resolution' {
         $installerText = Get-Content -LiteralPath $mainInstaller -Raw
-        Assert ($installerText -match 'candidateExecutable.*Revit\.exe') 'Revit detection does not precede runtime resolution.'
-        Assert ($installerText -match 'candidateExecutable.*acad\.exe') 'AutoCAD detection does not precede runtime resolution.'
-        Assert ($installerText -match 'Resolve-RevitMatrixEntry\s+\$entry\s+-RequireCertified') 'Installer does not reject uncertified Revit runtime variants before staging.'
-        Assert ($installerText -match 'Resolve-AutoCADMatrixEntry\s+\$entry\s+-RequireCertified') 'Installer does not identify uncertified AutoCAD runtime variants before staging.'
+        Assert ($installerText -match 'Resolve-AutodeskProductInstallation\s+-Product\s+revit') 'Installer does not use shared Revit discovery.'
+        Assert ($installerText -match 'Resolve-AutodeskProductInstallation\s+-Product\s+autocad') 'Installer does not use shared AutoCAD discovery.'
+        Assert ($installerText -match 'Resolve-RevitMatrixEntry\s+\$entry\s+-InstallDirectory.*-RequireCertified') 'Installer does not resolve the discovered Revit directory through certification.'
+        Assert ($installerText -match 'Resolve-AutoCADMatrixEntry\s+\$entry\s+-InstallDirectory.*-RequireCertified') 'Installer does not resolve the discovered AutoCAD directory through certification.'
         Assert ($installerText -match 'Add-SkippedProduct') 'Installer does not record incompatible installed products as skipped.'
         Assert ($installerText -match 'skippedProducts=@\(\$skippedProducts\)') 'Installer result does not expose skipped products.'
         Assert ($installerText -match 'knownRevitManifestPaths') 'Installer does not transactionally remove stale manifests for skipped Revit versions.'
@@ -238,6 +282,7 @@ try {
         Assert ($installerText -notmatch 'New-FileRecords\s+\$ownedPaths') 'Integrity checks still hash every private runtime file.'
         Assert ($installerText -match 'Remove-StaleTransactionDirectories\s+\$stateRoot') 'Successful repair does not clean safely scoped stale transaction directories.'
         Assert ($installerText -match '\[IO\.Directory\]::EnumerateFiles\(\$extended') 'Transaction cleanup does not support Windows extended-length paths.'
+        Assert ($installerText -match "Extension -ne '\.pyc'") 'Mutable Python bytecode is still included in install-state integrity records.'
     }
 } finally {
     if (Test-Path -LiteralPath $temporaryRoot) {

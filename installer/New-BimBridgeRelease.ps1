@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$Version = '2.0.0-alpha.2',
+    [string]$Version = '2.0.0-alpha.3',
     [string]$OutputDirectory
 )
 
@@ -87,6 +87,7 @@ try {
         'LICENSE','NOTICE','README.md','CHANGELOG.md','SECURITY.md','THIRD_PARTY_NOTICES.md',
         'installer\Install-BimBridge.ps1','installer\Start-BimBridgeMcp.ps1',
         'plugins\bim-bridge\.codex-plugin\plugin.json',
+        'plugins\bim-bridge\scripts\AutodeskProductDiscovery.ps1',
         'plugins\aec-codex\mcp-server','runtime\aec_runtime',
         'eng\Autodesk.Versions.props','eng\AutodeskVersionMatrix.ps1','eng\RevitVersionMatrix.ps1',
         'src\BimBridge.AutoCAD\PackageContents.template.xml'
@@ -133,6 +134,13 @@ try {
     }
     $initialized = $response[0] | ConvertFrom-Json
     if ([string]$initialized.result.serverInfo.name -ne 'aec-codex') { throw 'The staged MCP server identity is invalid.' }
+
+    foreach ($cacheDirectory in @(Get-ChildItem -LiteralPath $stageRoot -Directory -Recurse -Filter '__pycache__' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)) {
+        Remove-Item -LiteralPath $cacheDirectory.FullName -Recurse -Force
+    }
+    foreach ($compiledPython in @(Get-ChildItem -LiteralPath $stageRoot -File -Recurse -Filter '*.pyc' -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $compiledPython.FullName -Force
+    }
 
     $forbidden = @(Get-ChildItem -LiteralPath $stageRoot -File -Recurse -Force | Where-Object {
         $_.Name -match '^(\.env|\.npmrc|id_rsa|credentials)$' -or $_.Extension -match '^\.(pem|key|pfx|p12)$'

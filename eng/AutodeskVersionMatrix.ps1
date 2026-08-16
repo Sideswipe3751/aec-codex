@@ -35,9 +35,11 @@ function Get-AutoCADMatrixEntries([string]$MatrixPath) {
 function Resolve-AutoCADMatrixEntry(
     [object]$Release,
     [string]$ProgramFilesPath = $env:ProgramFiles,
+    [string]$InstallDirectory,
     [switch]$RequireCertified
 ) {
-    $installDirectory = Join-Path $ProgramFilesPath ([string]$Release.InstallSubdirectory)
+    if (-not $InstallDirectory) { $InstallDirectory = Join-Path $ProgramFilesPath ([string]$Release.InstallSubdirectory) }
+    $installDirectory = [IO.Path]::GetFullPath($InstallDirectory)
     $runtimeConfigPath = Join-Path $installDirectory 'acdbmgd.runtimeconfig.json'
     $targetFramework = [string]$Release.TargetFramework
     $detectedRuntime = $null

@@ -126,7 +126,7 @@ Prerequisites:
 - Codex, Tencent WorkBuddy, or Kimi Code for the matching agent adapter
 - AutoCAD 2024–2027 and/or one of the certified Revit releases listed above
 
-BIM Bridge 2.0.0-alpha.2 is available as a signed preview Host release. The
+BIM Bridge 2.0.0-alpha.3 is available as a signed preview Host release. The
 lightweight agent plugin remains separate from the native Host. For Codex:
 
 ```powershell
@@ -157,6 +157,11 @@ SHA-256, prerequisites, running Autodesk applications, and current-user paths
 before asking for permission. Only after the user confirms does Codex run the
 approved host installer. The installer deploys the private runtime and
 registers the external local MCP as `bim-bridge-local`.
+
+Autodesk products installed outside Program Files are discovered from their
+Windows installer registration. The same validated discovery code is used by
+preflight and installation, and an explicit product-path override is available
+for installations whose registration is incomplete.
 
 Restart Codex and the Autodesk applications after host installation, then
 start another new task for the health check. In Revit, click **Revit MCP

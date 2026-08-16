@@ -6,6 +6,8 @@ param(
     [string]$LocalRoot,
     [string]$ProgramFilesRoot,
     [string]$ProgramFilesX86Root,
+    [hashtable]$ProductInstallPathOverrides,
+    [object[]]$RegistryInstallRecords,
     [string]$CodexStartedAtUtc,
     [Nullable[bool]]$CodexMcpRegisteredOverride
 )
@@ -46,15 +48,6 @@ function Find-CodexCli {
     return $null
 }
 
-function Find-ProductPath([string[]]$Roots, [string]$RelativePath) {
-    foreach ($root in $Roots) {
-        if (-not $root) { continue }
-        $candidate = Join-Path $root $RelativePath
-        if (Test-Path -LiteralPath $candidate -PathType Container) { return $candidate }
-    }
-    return $null
-}
-
 function Convert-AutodeskRuntimeTfm([string]$RuntimeTfm, [string]$RuntimeConfigPath) {
     switch -Regex ($RuntimeTfm) {
         '^net8(\.0)?$' { return 'net8.0-windows' }
@@ -73,11 +66,10 @@ function Get-ProductStatus(
     $Manifest,
     [string]$Product,
     [string]$Version,
-    [string[]]$Roots,
-    [string]$RelativePath,
+    $Installation,
     [string]$RuntimeConfigName
 ) {
-    $installPath = Find-ProductPath $Roots $RelativePath
+    $installPath = if ($Installation) { [string]$Installation.InstallDirectory } else { $null }
     $certifiedTargets = @(Get-CertifiedTargets $Manifest $Product $Version)
     $targetFramework = $null
     $detectedRuntime = $null
@@ -113,6 +105,8 @@ function Get-ProductStatus(
             detectedRuntime=$detectedRuntime
             certified=([bool]$installPath -and -not $issue)
             certifiedTargetFrameworks=$certifiedTargets
+            installPath=$installPath
+            detectionSource=if ($Installation) { [string]$Installation.Source } else { $null }
         }
         Issue = $issue
     }
@@ -121,6 +115,7 @@ function Get-ProductStatus(
 if (-not $ManifestPath) { $ManifestPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'release-manifest.json' }
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { throw "Release manifest is missing: $ManifestPath" }
 . (Join-Path $PSScriptRoot 'Test-BimBridgeReleaseManifest.ps1')
+. (Join-Path $PSScriptRoot 'AutodeskProductDiscovery.ps1')
 $manifest = Read-VerifiedBimBridgeReleaseManifest $ManifestPath
 if ($manifest.schemaVersion -ne 2) { throw "Unsupported BIM Bridge release manifest schema: $($manifest.schemaVersion)" }
 
@@ -136,11 +131,18 @@ $compatibilityIssues = New-Object System.Collections.ArrayList
 if (-not $platformSupported) { [void]$prerequisiteIssues.Add('BIM Bridge requires 64-bit Windows.') }
 
 $programRoots = @($ProgramFilesRoot, $ProgramFilesX86Root)
+$registryRecords = if ($PSBoundParameters.ContainsKey('RegistryInstallRecords')) { @($RegistryInstallRecords) } else { @(Get-AutodeskRegistryInstallRecords) }
 $revitResults = @($manifest.supportedProducts.revit | ForEach-Object {
-    Get-ProductStatus $manifest 'revit' ([string]$_) $programRoots ('Autodesk\Revit ' + [string]$_) 'RevitAPI.runtimeconfig.json'
+    $installation = Resolve-AutodeskProductInstallation -Product revit -Version ([string]$_) `
+        -InstallSubdirectory ('Autodesk\Revit ' + [string]$_) -ProgramFilesRoots $programRoots `
+        -ProductInstallPathOverrides $ProductInstallPathOverrides -RegistryInstallRecords $registryRecords
+    Get-ProductStatus $manifest 'revit' ([string]$_) $installation 'RevitAPI.runtimeconfig.json'
 })
 $autocadResults = @($manifest.supportedProducts.autocad | ForEach-Object {
-    Get-ProductStatus $manifest 'autocad' ([string]$_) $programRoots ('Autodesk\AutoCAD ' + [string]$_) 'acdbmgd.runtimeconfig.json'
+    $installation = Resolve-AutodeskProductInstallation -Product autocad -Version ([string]$_) `
+        -InstallSubdirectory ('Autodesk\AutoCAD ' + [string]$_) -ProgramFilesRoots $programRoots `
+        -ProductInstallPathOverrides $ProductInstallPathOverrides -RegistryInstallRecords $registryRecords
+    Get-ProductStatus $manifest 'autocad' ([string]$_) $installation 'acdbmgd.runtimeconfig.json'
 })
 $revitProducts = @($revitResults | ForEach-Object { $_.Status })
 $autocadProducts = @($autocadResults | ForEach-Object { $_.Status })

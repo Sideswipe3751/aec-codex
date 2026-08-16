@@ -10,6 +10,9 @@ $originalProgramFiles = $env:ProgramFiles
 try {
     Expand-Archive -LiteralPath $ZipPath -DestinationPath $testRoot
     $fakeProgramFiles = Join-Path $testRoot 'ProgramFiles'
+    $customRevit2024 = Join-Path $testRoot 'CustomAutodesk\Revit 2024'
+    New-Item -ItemType Directory -Force -Path $customRevit2024 | Out-Null
+    New-Item -ItemType File -Force -Path (Join-Path $customRevit2024 'Revit.exe'),(Join-Path $customRevit2024 'RevitAPI.dll') | Out-Null
     foreach ($case in @(
         @{ version='2026'; tfm='net8.0' },
         @{ version='2027'; tfm='net10.0' }
@@ -17,6 +20,7 @@ try {
         $install = Join-Path $fakeProgramFiles ('Autodesk\Revit ' + $case.version)
         New-Item -ItemType Directory -Force -Path $install | Out-Null
         New-Item -ItemType File -Force -Path (Join-Path $install 'Revit.exe') | Out-Null
+        New-Item -ItemType File -Force -Path (Join-Path $install 'RevitAPI.dll') | Out-Null
         $runtime = [ordered]@{ runtimeOptions=[ordered]@{ tfm=$case.tfm } } | ConvertTo-Json -Depth 4
         [IO.File]::WriteAllText(
             (Join-Path $install 'RevitAPI.runtimeconfig.json'),
@@ -26,9 +30,11 @@ try {
 
     $env:ProgramFiles = $fakeProgramFiles
     $sourceRoot = Join-Path $testRoot 'bim-bridge'
+    $registryRecords = @([pscustomobject]@{ DisplayName='Revit 2024'; InstallLocation=$customRevit2024 })
     $result = (& (Join-Path $sourceRoot 'installer\Install-BimBridge.ps1') `
-        -SourceRoot $sourceRoot -SkipBuild -ValidateOnly) | ConvertFrom-Json
+        -SourceRoot $sourceRoot -SkipBuild -ValidateOnly -RegistryInstallRecords $registryRecords) | ConvertFrom-Json
 
+    if (@($result.revit) -notcontains '2024') { throw 'Registered custom-path Revit 2024 was not validated.' }
     if (@($result.revit) -notcontains '2027') { throw 'Compatible Revit 2027 was not validated.' }
     if (@($result.revit) -contains '2026') { throw 'Incompatible Revit 2026 was not skipped.' }
     $skip = @($result.skippedProducts | Where-Object { $_.product -eq 'revit' -and $_.version -eq '2026' })

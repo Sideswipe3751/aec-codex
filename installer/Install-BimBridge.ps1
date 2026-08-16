@@ -7,7 +7,9 @@ param(
     [string]$Configuration = 'Release',
     [switch]$SkipBuild,
     [switch]$ValidateOnly,
-    [switch]$MigrateLegacy
+    [switch]$MigrateLegacy,
+    [hashtable]$ProductInstallPathOverrides,
+    [object[]]$RegistryInstallRecords
 )
 
 $ErrorActionPreference = 'Stop'
@@ -191,7 +193,9 @@ function New-FileRecords([string[]]$Roots) {
         if (Test-Path -LiteralPath $root -PathType Leaf) {
             [void]$records.Add([ordered]@{ path=$root; sha256=(Get-FileHash -LiteralPath $root -Algorithm SHA256).Hash.ToLowerInvariant() })
         } elseif (Test-Path -LiteralPath $root -PathType Container) {
-            foreach ($file in @(Get-ChildItem -LiteralPath $root -File -Recurse)) {
+            foreach ($file in @(Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object {
+                $_.Extension -ne '.pyc' -and $_.FullName -notmatch '[\\/]__pycache__[\\/]'
+            })) {
                 [void]$records.Add([ordered]@{ path=$file.FullName; sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() })
             }
         }
@@ -216,7 +220,8 @@ $pluginManifestPath = Join-Path $SourceRoot 'plugins\bim-bridge\.codex-plugin\pl
 $releaseManifestPath = Join-Path $SourceRoot 'plugins\bim-bridge\release-manifest.json'
 $matrixPath = Join-Path $SourceRoot 'eng\Autodesk.Versions.props'
 $matrixHelperPath = Join-Path $SourceRoot 'eng\AutodeskVersionMatrix.ps1'
-foreach ($required in @($pluginManifestPath, $releaseManifestPath, $matrixPath, $matrixHelperPath)) {
+$productDiscoveryPath = Join-Path $SourceRoot 'plugins\bim-bridge\scripts\AutodeskProductDiscovery.ps1'
+foreach ($required in @($pluginManifestPath, $releaseManifestPath, $matrixPath, $matrixHelperPath, $productDiscoveryPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required BIM Bridge source file is missing: $required" }
 }
 
@@ -290,17 +295,23 @@ if ($Action -eq 'Uninstall') {
 }
 
 . $matrixHelperPath
+. $productDiscoveryPath
 $skippedProducts = New-Object System.Collections.ArrayList
 function Add-SkippedProduct([string]$Product, [string]$Version, [string]$Reason) {
     [void]$skippedProducts.Add([ordered]@{ product=$Product; version=$Version; reason=$Reason })
 }
 $revitEntries = @(Get-RevitMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
 $resolvedRevit = New-Object System.Collections.ArrayList
+$registryInstallRecords = if ($PSBoundParameters.ContainsKey('RegistryInstallRecords')) { @($RegistryInstallRecords) } else { @(Get-AutodeskRegistryInstallRecords) }
+$programFilesRoots = @($env:ProgramFiles, ${env:ProgramFiles(x86)})
 foreach ($entry in $revitEntries) {
-    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$entry.InstallSubdirectory)) 'Revit.exe'
-    if (-not (Test-Path -LiteralPath $candidateExecutable -PathType Leaf)) { continue }
+    $installation = Resolve-AutodeskProductInstallation -Product revit -Version ([string]$entry.Include) `
+        -InstallSubdirectory ([string]$entry.InstallSubdirectory) -ProgramFilesRoots $programFilesRoots `
+        -ProductInstallPathOverrides $ProductInstallPathOverrides -RegistryInstallRecords $registryInstallRecords
+    if (-not $installation) { continue }
     try {
-        $resolved = Resolve-RevitMatrixEntry $entry -RequireCertified
+        $resolved = Resolve-RevitMatrixEntry $entry -InstallDirectory $installation.InstallDirectory -RequireCertified
+        $resolved | Add-Member -NotePropertyName DetectionSource -NotePropertyValue ([string]$installation.Source)
         [void]$resolvedRevit.Add($resolved)
     } catch {
         Add-SkippedProduct 'revit' ([string]$entry.Include) $_.Exception.Message
@@ -309,10 +320,13 @@ foreach ($entry in $revitEntries) {
 $autoCADEntries = @(Get-AutoCADMatrixEntries $matrixPath | Where-Object { $_.CertificationStatus -eq 'certified' })
 $resolvedAutoCAD = New-Object System.Collections.ArrayList
 foreach ($entry in $autoCADEntries) {
-    $candidateExecutable = Join-Path (Join-Path $env:ProgramFiles ([string]$entry.InstallSubdirectory)) 'acad.exe'
-    if (-not (Test-Path -LiteralPath $candidateExecutable -PathType Leaf)) { continue }
+    $installation = Resolve-AutodeskProductInstallation -Product autocad -Version ([string]$entry.Include) `
+        -InstallSubdirectory ([string]$entry.InstallSubdirectory) -ProgramFilesRoots $programFilesRoots `
+        -ProductInstallPathOverrides $ProductInstallPathOverrides -RegistryInstallRecords $registryInstallRecords
+    if (-not $installation) { continue }
     try {
-        $resolved = Resolve-AutoCADMatrixEntry $entry -RequireCertified
+        $resolved = Resolve-AutoCADMatrixEntry $entry -InstallDirectory $installation.InstallDirectory -RequireCertified
+        $resolved | Add-Member -NotePropertyName DetectionSource -NotePropertyValue ([string]$installation.Source)
         [void]$resolvedAutoCAD.Add($resolved)
     } catch {
         Add-SkippedProduct 'autocad' ([string]$entry.Include) $_.Exception.Message
@@ -489,8 +503,8 @@ try {
         installMode='CodexBootstrap'; restartRequired=$true; mcpName=[string]$releaseManifest.mcpRegistration
         localMcpServer=$server; python=$python; launcher=$launcher
         products=[ordered]@{
-            revit=@($resolvedRevit | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily } })
-            autocad=@($resolvedAutoCAD | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily } })
+            revit=@($resolvedRevit | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily; installPath=$_.InstallDirectory; detectionSource=$_.DetectionSource } })
+            autocad=@($resolvedAutoCAD | ForEach-Object { [ordered]@{ version=$_.Include; targetFramework=$_.TargetFramework; runtimeFamily=$_.RuntimeFamily; installPath=$_.InstallDirectory; detectionSource=$_.DetectionSource } })
         }
         skippedProducts=@($skippedProducts)
         structuredProvidersInstalled=$false; ownedPaths=$ownedPaths; files=$fileRecords

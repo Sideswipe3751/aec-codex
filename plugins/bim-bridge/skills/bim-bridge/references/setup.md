@@ -63,6 +63,16 @@ compatible products, and its existing BIM Bridge manifest must be removed
 inside the same recoverable transaction so an incompatible connector cannot
 remain loadable.
 
+The status probe and Host installer share the same Autodesk discovery code.
+They prefer a validated explicit override, then Windows installer registry
+records, then standard Program Files paths. Normally no override is needed. If
+an installation has incomplete registry data and the user supplies its exact
+directory, rerun preflight with, for example,
+`-ProductInstallPathOverrides @{'revit:2024'='E:\Revit2024\Revit 2024'}` and
+pass the same argument to `Install-BimBridgeHost.ps1` after consent. Never infer
+or create a path mapping; the directory must contain the expected product
+executable and Autodesk API assembly.
+
 When installation succeeds, tell the user to close and reopen Codex, Revit,
 and AutoCAD, then start a new Codex task. In that new task, rerun the status
 script and proceed only when it reports `healthy`.

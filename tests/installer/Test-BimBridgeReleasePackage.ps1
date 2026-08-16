@@ -21,8 +21,11 @@ try {
     $entries = @($archive.Entries)
     $blocked = @($entries | Where-Object { $_.FullName -match '(^|/)(\.env|\.npmrc|id_rsa|credentials)$|\.(pfx|p12|pem|key)$' })
     if ($blocked.Count -gt 0) { throw 'Release archive contains forbidden files.' }
+    $mutablePython = @($entries | Where-Object { $_.FullName -match '(^|/)__pycache__(/|$)|\.pyc$' })
+    if ($mutablePython.Count -gt 0) { throw 'Release archive contains mutable generated Python bytecode.' }
     $requiredEntries = @(
         'bim-bridge/installer/Install-BimBridge.ps1',
+        'bim-bridge/plugins/bim-bridge/scripts/AutodeskProductDiscovery.ps1',
         'bim-bridge/runtime/python/python.exe'
     )
     foreach ($entry in @(Get-RevitMatrixEntries $matrixPath | Where-Object CertificationStatus -eq 'certified')) {

@@ -5,7 +5,8 @@ param(
     [string]$ManifestPath,
     [string]$LocalSourceRoot,
     [switch]$UserApproved,
-    [switch]$MigrateLegacy
+    [switch]$MigrateLegacy,
+    [hashtable]$ProductInstallPathOverrides
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +30,9 @@ if (-not $LocalSourceRoot -and $manifest.PSObject.Properties['developmentSourceR
 }
 
 $statusScript = Join-Path $PSScriptRoot 'Get-BimBridgeHostStatus.ps1'
-$preflight = (& $statusScript -ManifestPath $ManifestPath) | ConvertFrom-Json
+$preflightArguments = @{ ManifestPath=$ManifestPath }
+if ($ProductInstallPathOverrides) { $preflightArguments.ProductInstallPathOverrides = $ProductInstallPathOverrides }
+$preflight = (& $statusScript @preflightArguments) | ConvertFrom-Json
 if (@($preflight.prerequisiteIssues).Count -gt 0) {
     throw ('BIM Bridge prerequisites are not satisfied: ' + (@($preflight.prerequisiteIssues) -join ' '))
 }
@@ -42,6 +45,7 @@ if ($LocalSourceRoot) {
     if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Local BIM Bridge installer is missing: $installer" }
     $arguments = @{ Action=$Action; SourceRoot=[IO.Path]::GetFullPath($LocalSourceRoot); Confirm=$false }
     if ($MigrateLegacy) { $arguments.MigrateLegacy = $true }
+    if ($ProductInstallPathOverrides) { $arguments.ProductInstallPathOverrides = $ProductInstallPathOverrides }
     & $installer @arguments
     return
 }
@@ -69,6 +73,7 @@ try {
     $sourceRoot = Split-Path -Parent $installer.DirectoryName
     $arguments = @{ Action=$Action; SourceRoot=$sourceRoot; SkipBuild=$true; Confirm=$false }
     if ($MigrateLegacy) { $arguments.MigrateLegacy = $true }
+    if ($ProductInstallPathOverrides) { $arguments.ProductInstallPathOverrides = $ProductInstallPathOverrides }
     & $installer.FullName @arguments
 } finally {
     if (Test-Path -LiteralPath $temporaryRoot) {

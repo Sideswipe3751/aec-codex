@@ -56,6 +56,11 @@ private Python runtime and does not require system Python or run `pip` on the
 user PC. Structured providers are optional and are not installed by the current
 development alpha.
 
+Discovery uses a validated explicit product-path override when one is supplied,
+then Windows installer registry records, then standard Program Files paths. The
+status report shows `installPath` and `detectionSource` for each detected
+product. Preflight and installation use the same discovery implementation.
+
 With explicit legacy migration, the same transaction removes only known
 installer-owned AEC Codex Host, provider, Autodesk manifest/bundle, state-file,
 and `aec-codex-local` registration targets. Unknown legacy data, logs, and

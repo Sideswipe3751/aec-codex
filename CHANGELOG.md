@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.0-alpha.3 - 2026-08-16
+
+- Added shared Autodesk product discovery for both preflight and Host install,
+  using validated explicit overrides, Windows installer registry records, and
+  standard Program Files paths in that order.
+- Added custom-path evidence to status and install state so certified Revit and
+  AutoCAD connectors deploy when Autodesk is installed on another drive.
+- Excluded generated Python bytecode caches from release archives and installed
+  integrity records to prevent false `needs_repair` results.
+
 ## 2.0.0-alpha.2 - 2026-08-16
 
 - Scoped Autodesk release certification to exact runtime target frameworks.

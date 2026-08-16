@@ -912,6 +912,15 @@ not fail or roll back connectors for other compatible versions. Any stale BIM
 Bridge manifest for a skipped Revit version is removed inside the same
 recoverable transaction so Autodesk cannot load an incompatible connector.
 
+Autodesk product discovery is shared by the lightweight read-only status probe
+and the packaged Host installer. It accepts a product/version keyed explicit
+override when supplied, otherwise checks validated Windows installer registry
+records before falling back to matrix-derived Program Files paths. A candidate
+is installed only when its expected product executable and API assembly are
+both present; the resolved path and discovery source are retained as status and
+install-state evidence. Runtime-generated Python `__pycache__` directories and
+`.pyc` files are neither release inputs nor immutable install-state records.
+
 For the legacy migration, known installer-owned paths and the
 `aec-codex-local` registration may be removed inside the same rollback boundary.
 Unknown data and development trust under the legacy state root are preserved.
