@@ -3,7 +3,7 @@
 The public installation request is intentionally the same one sentence in
 Codex, WorkBuddy, Kimi Code, and future supported agents:
 
-> 请从 https://github.com/Sideswipe3751/bim-bridge 安装并配置 BIM Bridge。
+> Install and configure BIM Bridge from https://github.com/Sideswipe3751/bim-bridge.
 
 ## Agent dispatch rule
 

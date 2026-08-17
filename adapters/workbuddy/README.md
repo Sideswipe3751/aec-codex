@@ -8,7 +8,7 @@ not contain Autodesk code or a WorkBuddy-specific Runtime.
 
 Paste the repository's canonical request into WorkBuddy:
 
-> 请从 https://github.com/Sideswipe3751/bim-bridge 安装并配置 BIM Bridge。
+> Install and configure BIM Bridge from https://github.com/Sideswipe3751/bim-bridge.
 
 The deterministic WorkBuddy commands are:
 

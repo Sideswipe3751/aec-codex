@@ -1,7 +1,7 @@
 {
   "name": "bim-bridge",
   "version": "2.0.0-alpha.4",
-  "description": "通过 BIM Bridge 安全检查、建模和验证本机 Revit 与 AutoCAD。",
+  "description": "Inspect, model, and verify local Revit and AutoCAD sessions through BIM Bridge.",
   "description_en": "Inspect, model, and verify local Revit and AutoCAD sessions through BIM Bridge.",
   "author": {
     "name": "BIM Bridge"

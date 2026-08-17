@@ -18,7 +18,7 @@ verification, and correlated audit evidence.
 
 Copy the same sentence into Codex, Tencent WorkBuddy, or Kimi Code:
 
-> 请从 https://github.com/Sideswipe3751/bim-bridge 安装并配置 BIM Bridge。
+> Install and configure BIM Bridge from https://github.com/Sideswipe3751/bim-bridge.
 
 The current agent reads the repository installation contract and installs only
 its own thin adapter: Codex uses its Repo Marketplace, WorkBuddy uses its Plugin

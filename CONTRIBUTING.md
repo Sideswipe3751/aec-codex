@@ -4,6 +4,12 @@ Thank you for helping improve BIM Bridge. The project is an early release
 candidate, so reproducible reports and narrowly scoped changes are especially
 valuable.
 
+## Repository language
+
+Use English for all repository-facing content, including documentation, source
+comments, plugin metadata, commit messages, pull requests, issue templates, and
+release notes. Keep the canonical installation prompts and examples in English.
+
 ## Before opening an issue
 
 - Search existing issues and the release notes.

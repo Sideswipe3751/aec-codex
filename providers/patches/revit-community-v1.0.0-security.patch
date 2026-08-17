@@ -11,7 +11,7 @@ index 9238bbe..bf5891d 100644
                  _listener.Start();
  
                  _listenerThread = new Thread(ListenForClients)
-@@ -224,9 +224,18 @@ namespace revit_mcp_plugin.Core
+@@ -224,3 +224,12 @@ namespace revit_mcp_plugin.Core
  
              try
              {
@@ -24,13 +24,10 @@ index 9238bbe..bf5891d 100644
 +                }
 +                paramsObject?.Remove("_aecToken");
 +
-                 // 解析JSON-RPC请求
+@@ -228,2 +237,2 @@ namespace revit_mcp_plugin.Core
                  // Parse JSON-RPC requests.
 -                request = JsonConvert.DeserializeObject<JsonRPCRequest>(requestJson);
 +                request = requestObject.ToObject<JsonRPCRequest>();
- 
-                 // 验证请求格式是否有效
-                 // Verify that the request format is valid.
 @@ -282,6 +291,28 @@ namespace revit_mcp_plugin.Core
              }
          }
